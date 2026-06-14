@@ -113,6 +113,8 @@ export const chatFlow = ai.defineFlow({
 
 export const CreativeInputSchema = z.object({
   linkUrl: z.string(),
+  pageTitle: z.string().optional(),
+  htmlContent: z.string().optional(),
 });
 
 export const CreativeOutputSchema = z.object({
@@ -127,20 +129,26 @@ export const generateCreativeFlow = ai.defineFlow({
   inputSchema: CreativeInputSchema,
   outputSchema: CreativeOutputSchema,
 }, async (input) => {
-  const prompt = `Você é um analista de dados. Recebi este link/referência de um produto: ${input.linkUrl}
+  const prompt = `Você é um robô extrator de dados de e-commerce. O usuário colou o seguinte link:
+URL: ${input.linkUrl}
+${input.pageTitle ? `Título da Página: ${input.pageTitle}` : ''}
+${input.htmlContent ? `Trecho do HTML:\n${input.htmlContent}` : ''}
 
-Apenas lendo a URL (ou simulando caso não possa navegar), deduz o nome do produto.
-Crie também uma sugestão realista de Preço Atual (ex: 199.90) e Preço Antigo (maior que o atual, ex: 299.90). 
-Se o link contém o nome do produto e preço (ex: na URL ou parâmetros), use. Se não, invente algo plausível baseado na URL.
-Não envie símbolos de moeda (R$), apenas números com duas casas decimais separados por ponto.
+Sua missão é extrair as informações reais do produto exatamente como aparecem na loja.
+Regras:
+1. Extraia o Nome do Produto exato. Não resuma demais, não invente nomes (ex: se for um termômetro, não diga fone de ouvido).
+2. Extraia o Preço Atual exato (sem o símbolo R$, use ponto para decimais. Ex: 199.90).
+3. Se houver Preço Antigo/Riscado, extraia também.
+4. Se o HTML não mostrar o produto ou parecer um bloqueio (captcha), tente extrair o nome a partir da URL.
+5. Se não conseguir descobrir o produto de forma alguma, deixe os campos vazios. NÃO INVENTE DADOS.
 
-Responda usando o JSON Schema obrigatório.`;
+Responda usando o JSON Schema fornecido.`;
 
   const response = await ai.generate({
     model: gemini25FlashLite,
     prompt: prompt,
     output: { schema: CreativeOutputSchema },
-    config: { temperature: 0.5 }
+    config: { temperature: 0.1 } // Baixa temperatura para não inventar dados
   });
 
   if (!response.output) throw new Error('Falha ao gerar dados do criativo.');
