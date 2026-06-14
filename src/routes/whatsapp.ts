@@ -22,6 +22,17 @@ whatsappRouter.get('/status/:userId', (req, res) => {
   res.json(status);
 });
 
+whatsappRouter.get('/groups/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const { getWhatsAppGroups } = require('../services/whatsapp');
+    const groups = await getWhatsAppGroups(userId);
+    res.json(groups);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 whatsappRouter.post('/logout', async (req, res) => {
   const { userId } = req.body;
   if (!userId) return res.status(400).json({ error: 'Missing userId' });

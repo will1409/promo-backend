@@ -99,3 +99,21 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
   
   await session.socket.sendMessage(jid, { text: message });
 };
+
+export const getWhatsAppGroups = async (userId: string) => {
+  const session = sessions[userId];
+  if (!session || session.status !== 'connected') {
+    return [];
+  }
+  try {
+    const groups = await session.socket.groupFetchAllParticipating();
+    return Object.values(groups).map(g => ({
+      id: g.id,
+      name: g.subject
+    }));
+  } catch (e) {
+    console.error('Error fetching WA groups', e);
+    return [];
+  }
+};
+
