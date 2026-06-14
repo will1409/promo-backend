@@ -22,7 +22,22 @@ app.use(express.json());
 
 // Health Check
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', message: 'Pegue a Promo AI API running ✅' });
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  let saStatus = 'Not provided';
+  if (serviceAccount) {
+    try {
+      JSON.parse(serviceAccount);
+      saStatus = 'Provided and valid JSON';
+    } catch (e) {
+      saStatus = 'Provided but INVALID JSON';
+    }
+  }
+
+  res.json({ 
+    status: 'ok', 
+    message: 'Pegue a Promo AI API running ✅',
+    firebaseServiceAccount: saStatus
+  });
 });
 
 // Rotas
