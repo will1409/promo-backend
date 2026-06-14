@@ -119,8 +119,8 @@ export const CreativeInputSchema = z.object({
 });
 
 export const CreativeOutputSchema = z.object({
-  productName: z.string(),
-  price: z.string(),
+  productName: z.string().optional(),
+  price: z.string().optional(),
   oldPrice: z.string().optional(),
 });
 
