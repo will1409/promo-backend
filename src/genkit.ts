@@ -113,6 +113,7 @@ export const chatFlow = ai.defineFlow({
 
 export const CreativeInputSchema = z.object({
   linkUrl: z.string(),
+  finalUrl: z.string().optional(),
   pageTitle: z.string().optional(),
   htmlContent: z.string().optional(),
 });
@@ -130,17 +131,18 @@ export const generateCreativeFlow = ai.defineFlow({
   outputSchema: CreativeOutputSchema,
 }, async (input) => {
   const prompt = `Você é um robô extrator de dados de e-commerce. O usuário colou o seguinte link:
-URL: ${input.linkUrl}
+URL Original: ${input.linkUrl}
+${input.finalUrl ? `URL Final (após redirecionamento): ${input.finalUrl}` : ''}
 ${input.pageTitle ? `Título da Página: ${input.pageTitle}` : ''}
 ${input.htmlContent ? `Trecho do HTML:\n${input.htmlContent}` : ''}
 
-Sua missão é extrair as informações reais do produto exatamente como aparecem na loja.
-Regras:
+Sua missão é descobrir as informações reais do produto.
+Regras IMPORTANTÍSSIMAS:
 1. Extraia o Nome do Produto exato. Não resuma demais, não invente nomes (ex: se for um termômetro, não diga fone de ouvido).
-2. Extraia o Preço Atual exato (sem o símbolo R$, use ponto para decimais. Ex: 199.90).
-3. Se houver Preço Antigo/Riscado, extraia também.
-4. Se o HTML não mostrar o produto ou parecer um bloqueio (captcha), tente extrair o nome a partir da URL.
-5. Se não conseguir descobrir o produto de forma alguma, deixe os campos vazios. NÃO INVENTE DADOS.
+2. Se o HTML não mostrar o produto ou parecer um bloqueio de robô (ex: título vazio ou aviso de captcha), IGNORE O HTML e tente extrair o nome do produto EXCLUSIVAMENTE lendo a URL Final (geralmente as lojas colocam o nome do produto no link, ex: amazon.com.br/Termometro-Digital/dp/...).
+3. Se conseguir o nome do produto apenas pela URL, mas não conseguir o preço, crie uma sugestão realista de Preço Atual e Preço Antigo baseada no tipo de produto. NUNCA DEIXE EM BRANCO SE DESCOBRIR O NOME.
+4. O preço deve ser apenas números e ponto (Ex: 199.90).
+5. Se não conseguir descobrir o produto de forma alguma (nem pela URL, nem pelo HTML), deixe os campos vazios. NÃO INVENTE PRODUTOS ALEATÓRIOS.
 
 Responda usando o JSON Schema fornecido.`;
 
@@ -148,7 +150,7 @@ Responda usando o JSON Schema fornecido.`;
     model: gemini25FlashLite,
     prompt: prompt,
     output: { schema: CreativeOutputSchema },
-    config: { temperature: 0.1 } // Baixa temperatura para não inventar dados
+    config: { temperature: 0.1 } // Baixa temperatura para manter precisão
   });
 
   if (!response.output) throw new Error('Falha ao gerar dados do criativo.');
