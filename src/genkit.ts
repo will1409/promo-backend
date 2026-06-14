@@ -80,3 +80,29 @@ Responda usando a estrutura fornecida.`;
 
   return generatedData;
 });
+
+// Tipagem para mensagens de chat
+export const ChatMessageSchema = z.object({
+  role: z.enum(['user', 'model', 'system']),
+  content: z.array(z.object({ text: z.string() })),
+});
+
+// Fluxo para o Chatbot
+export const chatFlow = ai.defineFlow({
+  name: 'chatFlow',
+  inputSchema: z.array(ChatMessageSchema),
+  outputSchema: z.string(),
+}, async (messages) => {
+  const systemPrompt = {
+    role: 'system' as const,
+    content: [{ text: 'Você é um assistente inteligente e amigável da plataforma PromoRadar (uma ferramenta para top afiliados que ajuda a gerar textos persuasivos, encurtar links e gerenciar ofertas). Responda sempre em português brasileiro, de forma direta, prestativa e use emojis.' }]
+  };
+
+  const response = await ai.generate({
+    model: gemini15Flash,
+    messages: [systemPrompt, ...messages],
+    config: { temperature: 0.7 }
+  });
+
+  return response.text;
+});

@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import offersRouter from './routes/offers';
 import linksRouter from './routes/links';
+import chatRouter from './routes/chat';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.get('/api/health', (_req, res) => {
 // Rotas
 app.use('/api/offers', offersRouter);
 app.use('/api/links', linksRouter);
+app.use('/api/chat', chatRouter);
 
 app.listen(port, () => {
   console.log(`✅ Server rodando na porta ${port}`);
