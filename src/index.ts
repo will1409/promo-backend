@@ -6,6 +6,7 @@ import chatRouter from './routes/chat';
 import creativesRouter from './routes/creatives';
 import dashboardRouter from './routes/dashboard';
 import { channelsRouter } from './routes/channels';
+import { whatsappRouter } from './routes/whatsapp';
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.use('/api/chat', chatRouter);
 app.use('/api/creatives', creativesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/channels', channelsRouter);
+app.use('/api/whatsapp', whatsappRouter);
 
 
 

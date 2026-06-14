@@ -42,30 +42,9 @@ channelsRouter.post('/send', async (req, res) => {
       result = tgData;
 
     } else if (channelType === 'whatsapp') {
-      const apiUrl = integrations.whatsappApiUrl;
-      const apiKey = integrations.whatsappApiKey;
-
-      if (!apiUrl || !apiKey) {
-        return res.status(400).json({ error: 'WhatsApp API URL/Token não configurados.' });
-      }
-
-      // Placeholder for generic WhatsApp API (Evolution/Z-API style)
-      // Usually it's POST /message/sendText
-      // We will do a generic POST that might fit standard webhooks
-      const waResponse = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'apikey': apiKey // some APIs use this header
-        },
-        body: JSON.stringify({
-          number: targetId,
-          text: message
-        })
-      });
-      
-      result = await waResponse.text();
+      const { sendWhatsAppMessage } = require('../services/whatsapp');
+      await sendWhatsAppMessage(userId, targetId, message);
+      result = 'Mensagem enviada via Baileys';
 
     } else if (channelType === 'instagram') {
       return res.status(501).json({ error: 'Integração direta com Instagram em desenvolvimento.' });
