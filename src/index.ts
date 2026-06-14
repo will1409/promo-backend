@@ -5,6 +5,7 @@ import offersRouter from './routes/offers';
 import linksRouter from './routes/links';
 import chatRouter from './routes/chat';
 import creativesRouter from './routes/creatives';
+import dashboardRouter from './routes/dashboard';
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use('/api/offers', offersRouter);
 app.use('/api/links', linksRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/creatives', creativesRouter);
+app.use('/api/dashboard', dashboardRouter);
 
 // Rota do Encurtador de Links (Redirecionamento)
 app.get('/:shortCode', async (req, res) => {
