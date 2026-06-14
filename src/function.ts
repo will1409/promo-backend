@@ -14,7 +14,7 @@ app.use(cors({
 app.use(express.json());
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', message: 'PromoRadar AI API ✅' });
+  res.json({ status: 'ok', message: 'Pegue a Promo AI API ✅' });
 });
 
 app.use('/offers', offersRouter);

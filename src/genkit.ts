@@ -93,7 +93,7 @@ export const chatFlow = ai.defineFlow({
   inputSchema: z.array(ChatMessageSchema),
   outputSchema: z.string(),
 }, async (messages) => {
-  let promptText = `Você é um assistente inteligente e amigável da plataforma PromoRadar (uma ferramenta para top afiliados que ajuda a gerar textos persuasivos, encurtar links e gerenciar ofertas). Responda sempre em português brasileiro, de forma direta, prestativa e use emojis.\n\nHistórico da Conversa:\n`;
+  let promptText = `Você é um assistente inteligente e amigável da plataforma Pegue a Promo (uma ferramenta para top afiliados que ajuda a gerar textos persuasivos, encurtar links e gerenciar ofertas). Responda sempre em português brasileiro, de forma direta, prestativa e use emojis.\n\nHistórico da Conversa:\n`;
 
   messages.forEach((msg) => {
     const roleName = msg.role === 'user' ? 'Usuário' : 'Assistente';

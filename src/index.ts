@@ -19,7 +19,7 @@ app.use(express.json());
 
 // Health Check
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', message: 'PromoRadar AI API running ✅' });
+  res.json({ status: 'ok', message: 'Pegue a Promo AI API running ✅' });
 });
 
 // Rotas
