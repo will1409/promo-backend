@@ -2,7 +2,6 @@ import { onRequest } from 'firebase-functions/v2/https';
 import express from 'express';
 import cors from 'cors';
 import offersRouter from './routes/offers';
-import linksRouter from './routes/links';
 import chatRouter from './routes/chat';
 
 const app = express();
@@ -18,7 +17,6 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/offers', offersRouter);
-app.use('/links', linksRouter);
 app.use('/chat', chatRouter);
 
 // Exporta a API HTTP
