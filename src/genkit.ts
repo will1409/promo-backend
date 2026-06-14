@@ -1,5 +1,5 @@
 import { genkit, z } from 'genkit';
-import { googleAI, gemini15Flash } from '@genkit-ai/googleai';
+import { googleAI, gemini25FlashLite } from '@genkit-ai/googleai';
 import { db } from './config/firebase';
 
 // Inicializa o Genkit configurado com o plugin Google AI
@@ -56,7 +56,7 @@ Responda usando a estrutura fornecida.`;
 
   // Chama o modelo Gemini via Genkit
   const response = await ai.generate({
-    model: gemini15Flash,
+    model: gemini25FlashLite,
     prompt: prompt,
     output: { schema: OfferOutputSchema },
     config: {
@@ -93,14 +93,18 @@ export const chatFlow = ai.defineFlow({
   inputSchema: z.array(ChatMessageSchema),
   outputSchema: z.string(),
 }, async (messages) => {
-  const systemPrompt = {
-    role: 'system' as const,
-    content: [{ text: 'Você é um assistente inteligente e amigável da plataforma PromoRadar (uma ferramenta para top afiliados que ajuda a gerar textos persuasivos, encurtar links e gerenciar ofertas). Responda sempre em português brasileiro, de forma direta, prestativa e use emojis.' }]
-  };
+  let promptText = `Você é um assistente inteligente e amigável da plataforma PromoRadar (uma ferramenta para top afiliados que ajuda a gerar textos persuasivos, encurtar links e gerenciar ofertas). Responda sempre em português brasileiro, de forma direta, prestativa e use emojis.\n\nHistórico da Conversa:\n`;
+
+  messages.forEach((msg) => {
+    const roleName = msg.role === 'user' ? 'Usuário' : 'Assistente';
+    promptText += `${roleName}: ${msg.content[0].text}\n\n`;
+  });
+
+  promptText += `Assistente: `;
 
   const response = await ai.generate({
-    model: gemini15Flash,
-    messages: [systemPrompt, ...messages],
+    model: gemini25FlashLite,
+    prompt: promptText,
     config: { temperature: 0.7 }
   });
 
