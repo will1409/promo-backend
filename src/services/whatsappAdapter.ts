@@ -51,7 +51,8 @@ export const useFirestoreAuthState = async (userId: string): Promise<{ state: Au
           const data: { [key: string]: any } = {};
           await Promise.all(
             ids.map(async (id) => {
-              const docId = `${type}-${id}`;
+              const sanitizeId = (str: string) => str.replace(/\//g, '_').replace(/\\/g, '_');
+              const docId = sanitizeId(`${type}-${id}`);
               let value = keysCache[docId];
               if (!value) {
                 value = await readData(docId);
@@ -69,10 +70,11 @@ export const useFirestoreAuthState = async (userId: string): Promise<{ state: Au
         },
         set: async (data) => {
           const tasks: Promise<void>[] = [];
+          const sanitizeId = (str: string) => str.replace(/\//g, '_').replace(/\\/g, '_');
           for (const category in data) {
             for (const id in data[category as keyof typeof data]) {
               const value = data[category as keyof typeof data]?.[id];
-              const docId = `${category}-${id}`;
+              const docId = sanitizeId(`${category}-${id}`);
               if (value) {
                 keysCache[docId] = value;
                 tasks.push(writeData(value, docId));
