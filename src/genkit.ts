@@ -69,13 +69,17 @@ Responda usando a estrutura fornecida.`;
 
   // Salva no banco de dados se houver userId
   if (input.userId && db) {
-    await db.collection('offers').add({
-      userId: input.userId,
-      ...input,
-      ...generatedData,
-      clicks: 0,
-      createdAt: new Date().toISOString(),
-    });
+    try {
+      await db.collection('offers').add({
+        userId: input.userId,
+        ...input,
+        ...generatedData,
+        clicks: 0,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error('Falha ao salvar no Firestore (possível falta de credenciais):', e);
+    }
   }
 
   return generatedData;
