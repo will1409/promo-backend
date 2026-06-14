@@ -46,8 +46,6 @@ channelsRouter.post('/send', async (req, res) => {
       await sendWhatsAppMessage(userId, targetId, message);
       result = 'Mensagem enviada via Baileys';
 
-    } else if (channelType === 'instagram') {
-      return res.status(501).json({ error: 'Integração direta com Instagram em desenvolvimento.' });
     } else {
       return res.status(400).json({ error: 'Canal não suportado' });
     }
