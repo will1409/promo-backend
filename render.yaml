@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: pegue-a-promo-api
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false   # Você preencherá esse valor no painel do Render
