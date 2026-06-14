@@ -39,8 +39,8 @@ async function fetchPageData(url: string) {
     
     // Extract Image
     let imageUrl;
-    const ogMatch = html.match(/<meta\s+(?:property|name)=["']og:image["']\s+content=["'](.*?)["']/i) || 
-                    html.match(/<meta\s+content=["'](.*?)["']\s+(?:property|name)=["']og:image["']/i);
+    const ogMatch = html.match(/<meta[^>]*?(?:property|name)=["']og:image["'][^>]*?content=["'](.*?)["']/i) || 
+                    html.match(/<meta[^>]*?content=["'](.*?)["'][^>]*?(?:property|name)=["']og:image["']/i);
     if (ogMatch && ogMatch[1]) imageUrl = ogMatch[1];
     else {
       const amzMatch = html.match(/id="landingImage"[^>]*src=["'](.*?)["']/i);
