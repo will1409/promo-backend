@@ -35,7 +35,7 @@ channelsRouter.post('/send', async (req, res) => {
         })
       });
 
-      const tgData = await tgResponse.json();
+      const tgData: any = await tgResponse.json();
       if (!tgData.ok) {
         throw new Error(tgData.description || 'Erro na API do Telegram');
       }

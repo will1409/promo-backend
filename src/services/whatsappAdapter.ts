@@ -60,7 +60,7 @@ export const useFirestoreAuthState = async (userId: string): Promise<{ state: Au
                 }
               }
               if (type === 'app-state-sync-key' && value) {
-                value = SignalDataTypeMap[type].deserialize(value);
+                // value = SignalDataTypeMap[type].deserialize(value);
               }
               data[id] = value;
             })
