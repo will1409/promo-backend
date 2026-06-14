@@ -110,3 +110,39 @@ export const chatFlow = ai.defineFlow({
 
   return response.text;
 });
+
+export const CreativeInputSchema = z.object({
+  linkUrl: z.string(),
+});
+
+export const CreativeOutputSchema = z.object({
+  productName: z.string(),
+  price: z.string(),
+  oldPrice: z.string().optional(),
+});
+
+// Fluxo para ler link e sugerir dados do criativo
+export const generateCreativeFlow = ai.defineFlow({
+  name: 'generateCreativeFlow',
+  inputSchema: CreativeInputSchema,
+  outputSchema: CreativeOutputSchema,
+}, async (input) => {
+  const prompt = `Você é um analista de dados. Recebi este link/referência de um produto: ${input.linkUrl}
+
+Apenas lendo a URL (ou simulando caso não possa navegar), deduz o nome do produto.
+Crie também uma sugestão realista de Preço Atual (ex: 199.90) e Preço Antigo (maior que o atual, ex: 299.90). 
+Se o link contém o nome do produto e preço (ex: na URL ou parâmetros), use. Se não, invente algo plausível baseado na URL.
+Não envie símbolos de moeda (R$), apenas números com duas casas decimais separados por ponto.
+
+Responda usando o JSON Schema obrigatório.`;
+
+  const response = await ai.generate({
+    model: gemini25FlashLite,
+    prompt: prompt,
+    output: { schema: CreativeOutputSchema },
+    config: { temperature: 0.5 }
+  });
+
+  if (!response.output) throw new Error('Falha ao gerar dados do criativo.');
+  return response.output;
+});

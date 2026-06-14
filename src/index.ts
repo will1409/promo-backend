@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import offersRouter from './routes/offers';
 import linksRouter from './routes/links';
 import chatRouter from './routes/chat';
+import creativesRouter from './routes/creatives';
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/offers', offersRouter);
 app.use('/api/links', linksRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/creatives', creativesRouter);
 
 // Rota do Encurtador de Links (Redirecionamento)
 app.get('/:shortCode', async (req, res) => {
