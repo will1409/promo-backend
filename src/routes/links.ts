@@ -16,7 +16,8 @@ router.post('/shorten', async (req: Request, res: Response) => {
     }
 
     const shortCode = nanoid(6);
-    const shortUrl = `https://prm.ai/${shortCode}`;
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const shortUrl = `${baseUrl}/${shortCode}`;
 
     const linkData = {
       userId: userId || 'anonymous',
