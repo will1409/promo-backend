@@ -49,8 +49,22 @@ app.get('/:shortCode', async (req, res) => {
     const doc = snapshot.docs[0];
     const data = doc.data();
     
-    // Incrementar cliques em background (não precisa dar await para não atrasar o redirect)
-    doc.ref.update({ clicks: (data.clicks || 0) + 1 }).catch(console.error);
+    const userAgent = req.get('User-Agent') || '';
+    const referer = req.get('Referer') || '';
+    
+    let source = 'Outros';
+    if (userAgent.includes('Instagram') || referer.includes('instagram.com')) source = 'Instagram';
+    else if (userAgent.includes('Telegram') || referer.includes('t.me')) source = 'Telegram';
+    else if (userAgent.includes('WhatsApp') || referer.includes('whatsapp.com') || userAgent.includes('FBAN/WhatsApp')) source = 'WhatsApp';
+
+    // Incrementar cliques em background
+    const updateData: any = { clicks: (data.clicks || 0) + 1 };
+    
+    const clicksBySource = data.clicksBySource || { Telegram: 0, WhatsApp: 0, Instagram: 0, Outros: 0 };
+    clicksBySource[source] = (clicksBySource[source] || 0) + 1;
+    updateData.clicksBySource = clicksBySource;
+
+    doc.ref.update(updateData).catch(console.error);
 
     // Redirecionar para o link original
     return res.redirect(data.originalUrl);

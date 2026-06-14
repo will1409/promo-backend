@@ -17,8 +17,15 @@ router.get('/:userId', async (req: Request, res: Response) => {
       
     let totalOffers = offersSnapshot.size;
     let totalClicks = 0;
+    
+    const trafficSources = {
+      Telegram: 0,
+      WhatsApp: 0,
+      Instagram: 0,
+      Outros: 0
+    };
 
-    // Buscar Links para somar os cliques reais de redirecionamento
+    // Buscar Links para somar os cliques reais de redirecionamento e fontes
     const linksSnapshot = await db.collection('links')
       .where('userId', '==', userId)
       .get();
@@ -26,7 +33,27 @@ router.get('/:userId', async (req: Request, res: Response) => {
     linksSnapshot.forEach(doc => {
       const data = doc.data();
       totalClicks += data.clicks || 0;
+      if (data.clicksBySource) {
+        trafficSources.Telegram += data.clicksBySource.Telegram || 0;
+        trafficSources.WhatsApp += data.clicksBySource.WhatsApp || 0;
+        trafficSources.Instagram += data.clicksBySource.Instagram || 0;
+        trafficSources.Outros += data.clicksBySource.Outros || 0;
+      }
     });
+
+    // Calcular as porcentagens do tráfego
+    const totalSourceClicks = trafficSources.Telegram + trafficSources.WhatsApp + trafficSources.Instagram + trafficSources.Outros;
+    
+    const trafficMetrics = [
+      { label: 'Telegram', value: trafficSources.Telegram },
+      { label: 'WhatsApp', value: trafficSources.WhatsApp },
+      { label: 'Instagram', value: trafficSources.Instagram },
+      { label: 'Outros', value: trafficSources.Outros },
+    ].sort((a, b) => b.value - a.value).slice(0, 3).map(item => ({
+      label: item.label,
+      pct: totalSourceClicks > 0 ? `${Math.round((item.value / totalSourceClicks) * 100)}%` : '0%',
+      rawPct: totalSourceClicks > 0 ? Math.round((item.value / totalSourceClicks) * 100) : 0
+    }));
 
     // Como as ofertas ainda não registram "cliques diretos" no preview,
     // os "cliques" no dashboard serão a soma de cliques nos Links encurtados.
@@ -51,7 +78,8 @@ router.get('/:userId', async (req: Request, res: Response) => {
       totalClicks,
       campaigns: totalOffers > 0 ? Math.max(1, Math.floor(totalOffers / 3)) : 0, // Mock de campanhas baseadas em ofertas por enquanto
       conversionRate: totalOffers > 0 ? 4.2 : 0, // Mock rate
-      recentOffers
+      recentOffers,
+      trafficMetrics
     };
 
     return res.json({ success: true, data: stats });
