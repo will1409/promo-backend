@@ -33,10 +33,13 @@ app.get('/api/health', (_req, res) => {
     }
   }
 
+  const geminiKey = process.env.GEMINI_API_KEY;
+
   res.json({ 
     status: 'ok', 
     message: 'Pegue a Promo AI API running ✅',
-    firebaseServiceAccount: saStatus
+    firebaseServiceAccount: saStatus,
+    geminiKeyProvided: !!geminiKey
   });
 });
 
