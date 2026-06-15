@@ -22,7 +22,8 @@ app.use(cors({
   origin: ['http://localhost:5173', 'https://pegue-a-promo.web.app'],
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Health Check
 app.get('/api/health', (_req, res) => {
