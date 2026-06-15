@@ -98,7 +98,13 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
   const jid = targetId.includes('@') ? targetId : `${targetId}@g.us`;
   
   if (imageUrl) {
-    await session.socket.sendMessage(jid, { image: { url: imageUrl }, caption: message });
+    if (imageUrl.startsWith('data:image')) {
+      const base64Data = imageUrl.split(',')[1];
+      const buffer = Buffer.from(base64Data, 'base64');
+      await session.socket.sendMessage(jid, { image: buffer, caption: message });
+    } else {
+      await session.socket.sendMessage(jid, { image: { url: imageUrl }, caption: message });
+    }
   } else {
     await session.socket.sendMessage(jid, { text: message });
   }
