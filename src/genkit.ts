@@ -151,7 +151,7 @@ Regras IMPORTANTÍSSIMAS:
 Responda usando o JSON Schema fornecido.`;
 
   const response = await ai.generate({
-    model: gemini25FlashLite,
+    model: gemini15Flash,
     prompt: prompt,
     output: { schema: CreativeOutputSchema },
     config: { temperature: 0.1 } // Baixa temperatura para manter precisão
