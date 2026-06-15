@@ -1,5 +1,5 @@
 import { genkit, z } from 'genkit';
-import { googleAI, gemini25FlashLite } from '@genkit-ai/googleai';
+import { googleAI, gemini15Flash } from '@genkit-ai/googleai';
 import { db } from './config/firebase';
 
 // Inicializa o Genkit configurado com o plugin Google AI
@@ -56,7 +56,7 @@ Responda usando a estrutura fornecida.`;
 
   // Chama o modelo Gemini via Genkit
   const response = await ai.generate({
-    model: gemini25FlashLite,
+    model: gemini15Flash,
     prompt: prompt,
     output: { schema: OfferOutputSchema },
     config: {
@@ -107,7 +107,7 @@ export const chatFlow = ai.defineFlow({
   promptText += `Assistente: `;
 
   const response = await ai.generate({
-    model: gemini25FlashLite,
+    model: gemini15Flash,
     prompt: promptText,
     config: { temperature: 0.7 }
   });
