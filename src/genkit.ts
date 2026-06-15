@@ -45,6 +45,11 @@ ${input.category ? `Categoria: ${input.category}` : ''}
 ${input.platform ? `Plataforma: ${input.platform}` : ''}
 ${input.affiliateLink ? `Link: ${input.affiliateLink}` : 'Link: [LINK_AFILIADO]'}
 
+Regras IMPORTANTÍSSIMAS:
+1. USE APENAS OS DADOS FORNECIDOS ACIMA.
+2. NÃO INVENTE características, benefícios ou especificações que não estejam contidas no nome do produto.
+3. O preço, desconto e nome do produto devem ser EXATAMENTE os fornecidos. Se algo estiver em branco, não preencha nem invente.
+
 Crie:
 1. Um título chamativo (máximo 80 caracteres)
 2. Uma descrição curta e persuasiva (máximo 150 caracteres)
@@ -142,11 +147,11 @@ ${input.htmlContent ? `Trecho do HTML:\n${input.htmlContent}` : ''}
 
 Sua missão é descobrir as informações reais do produto.
 Regras IMPORTANTÍSSIMAS:
-1. Extraia o Nome do Produto exato. Não resuma demais, não invente nomes (ex: se for um termômetro, não diga fone de ouvido).
-2. Se o HTML não mostrar o produto ou parecer um bloqueio de robô (ex: título vazio ou aviso de captcha), IGNORE O HTML e tente extrair o nome do produto EXCLUSIVAMENTE lendo a URL Final (geralmente as lojas colocam o nome do produto no link, ex: amazon.com.br/Termometro-Digital/dp/...).
-3. Se conseguir o nome do produto apenas pela URL, mas não conseguir o preço, crie uma sugestão realista de Preço Atual e Preço Antigo baseada no tipo de produto. NUNCA DEIXE EM BRANCO SE DESCOBRIR O NOME.
+1. Extraia o Nome do Produto exato. Não resuma demais, não invente nomes.
+2. Se o HTML não mostrar o produto ou parecer um bloqueio de robô, tente extrair o nome do produto lendo a URL Final.
+3. EXTRAIA APENAS VALORES REAIS DO SITE. NUNCA invente preços, descrições ou descontos. Se você não conseguir achar o preço exato no texto fornecido, deixe os campos de preço COMPLETAMENTE VAZIOS. Não faça sugestões.
 4. O preço deve ser apenas números e ponto (Ex: 199.90).
-5. Se não conseguir descobrir o produto de forma alguma (nem pela URL, nem pelo HTML), deixe os campos vazios. NÃO INVENTE PRODUTOS ALEATÓRIOS.
+5. Se não conseguir descobrir o produto de forma alguma, deixe os campos vazios. NÃO INVENTE PRODUTOS ALEATÓRIOS.
 
 Responda usando o JSON Schema fornecido.`;
 

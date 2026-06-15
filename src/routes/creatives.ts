@@ -79,7 +79,7 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
     }
 
     // Carregar integrações do usuário
-    let integrations = {};
+    let integrations: any = {};
     if (userId) {
       try {
         const docSnap = await db.doc(`users/${userId}/settings/integrations`).get();
@@ -89,6 +89,10 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
       } catch (err) {
         console.error('Erro ao buscar integracoes:', err);
       }
+    }
+
+    if (!integrations.scraperApiKey) {
+      return res.status(403).json({ error: 'Você precisa conectar sua API na aba "Integrações" para usar a inteligência artificial com links originais.' });
     }
 
     const { imageUrl, pageTitle, htmlContent, finalUrl } = await fetchPageData(linkUrl, integrations);
