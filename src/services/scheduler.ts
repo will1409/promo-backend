@@ -34,30 +34,24 @@ export const startScheduler = () => {
         // Dispara para cada canal selecionado
         for (const channel of targetChannels) {
           try {
-            if (channel.type === 'telegram') {
-              const userDoc = await db.collection('users').doc(userId).collection('settings').doc('integrations').get();
-              const integrations = userDoc.data() || {};
-              const token = integrations.telegramBotToken;
-              if (token) {
-                if (schedule.imageUrl) {
-                  await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: channel.targetId, photo: schedule.imageUrl, caption: messageText, parse_mode: 'HTML' })
-                  });
-                } else {
-                  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: channel.targetId, text: messageText, parse_mode: 'HTML' })
-                  });
-                }
-                sentCount++;
-              }
-            } else if (channel.type === 'whatsapp') {
-              const { sendWhatsAppMessage } = require('./whatsapp');
-              await sendWhatsAppMessage(userId, channel.targetId, messageText, schedule.imageUrl);
+            // Dispara para cada canal usando a mesma rota de envio da dashboard
+            const port = process.env.PORT || 3001;
+            const res = await fetch(`http://127.0.0.1:${port}/api/channels/send`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId,
+                channelType: channel.type,
+                targetId: channel.targetId,
+                message: messageText,
+                imageUrl: schedule.imageUrl
+              })
+            });
+            const data = await res.json();
+            if (data.success) {
               sentCount++;
+            } else {
+              console.error(`Erro na API de envio:`, data.error);
             }
             
             // Atualiza o totalSent do canal

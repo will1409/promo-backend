@@ -25,7 +25,21 @@ channelsRouter.post('/send', async (req, res) => {
       }
 
       let tgResponse;
-      if (imageUrl) {
+      if (imageUrl && imageUrl.startsWith('data:image')) {
+        const base64Data = imageUrl.split(',')[1];
+        const buffer = Buffer.from(base64Data, 'base64');
+        const blob = new Blob([buffer], { type: 'image/jpeg' });
+        const formData = new FormData();
+        formData.append('chat_id', targetId);
+        formData.append('photo', blob, 'oferta.jpg');
+        formData.append('caption', message);
+        formData.append('parse_mode', 'HTML');
+
+        tgResponse = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+          method: 'POST',
+          body: formData
+        });
+      } else if (imageUrl) {
         tgResponse = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
