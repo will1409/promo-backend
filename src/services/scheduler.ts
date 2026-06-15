@@ -9,17 +9,23 @@ export const startScheduler = () => {
     try {
       const now = new Date().toISOString();
       
-      // Busca agendamentos pendentes cuja data já chegou ou passou
+      // Busca agendamentos pendentes (filtra por data na memória para evitar erro de Index do Firestore)
       const snapshot = await db.collection('scheduled_offers')
         .where('status', '==', 'pending')
-        .where('scheduledFor', '<=', now)
         .get();
 
       if (snapshot.empty) return;
 
-      console.log(`🚀 Executando ${snapshot.size} agendamentos pendentes...`);
+      const pendingDocs = snapshot.docs.filter(doc => {
+        const data = doc.data();
+        return data.scheduledFor <= now;
+      });
 
-      for (const doc of snapshot.docs) {
+      if (pendingDocs.length === 0) return;
+
+      console.log(`🚀 Executando ${pendingDocs.length} agendamentos pendentes...`);
+
+      for (const doc of pendingDocs) {
         const schedule = doc.data();
         const { userId, messageText, targetChannels } = schedule;
 
