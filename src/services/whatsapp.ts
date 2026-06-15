@@ -88,7 +88,7 @@ export const logoutWhatsApp = async (userId: string) => {
   }
 };
 
-export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string) => {
+export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string) => {
   const session = sessions[userId];
   if (!session || session.status !== 'connected') {
     throw new Error('WhatsApp não está conectado.');
@@ -97,7 +97,11 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
   // Ensure targetId format is correct (JID)
   const jid = targetId.includes('@') ? targetId : `${targetId}@g.us`;
   
-  await session.socket.sendMessage(jid, { text: message });
+  if (imageUrl) {
+    await session.socket.sendMessage(jid, { image: { url: imageUrl }, caption: message });
+  } else {
+    await session.socket.sendMessage(jid, { text: message });
+  }
 };
 
 export const getWhatsAppGroups = async (userId: string) => {

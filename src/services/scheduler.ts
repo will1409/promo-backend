@@ -33,16 +33,24 @@ export const startScheduler = () => {
               const integrations = userDoc.data() || {};
               const token = integrations.telegramBotToken;
               if (token) {
-                await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ chat_id: channel.targetId, text: messageText, parse_mode: 'HTML' })
-                });
+                if (schedule.imageUrl) {
+                  await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: channel.targetId, photo: schedule.imageUrl, caption: messageText, parse_mode: 'HTML' })
+                  });
+                } else {
+                  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: channel.targetId, text: messageText, parse_mode: 'HTML' })
+                  });
+                }
                 sentCount++;
               }
             } else if (channel.type === 'whatsapp') {
               const { sendWhatsAppMessage } = require('./whatsapp');
-              await sendWhatsAppMessage(userId, channel.targetId, messageText);
+              await sendWhatsAppMessage(userId, channel.targetId, messageText, schedule.imageUrl);
               sentCount++;
             }
             

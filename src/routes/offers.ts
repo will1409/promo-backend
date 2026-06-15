@@ -42,7 +42,7 @@ router.get('/:userId', async (req: Request, res: Response) => {
 // POST /api/offers/schedule — Agendar oferta
 router.post('/schedule', async (req: Request, res: Response) => {
   try {
-    const { userId, messageText, targetChannels, scheduledFor } = req.body;
+    const { userId, messageText, targetChannels, scheduledFor, imageUrl } = req.body;
     if (!userId || !messageText || !targetChannels || !scheduledFor) {
       return res.status(400).json({ error: 'Faltam campos obrigatórios' });
     }
@@ -52,6 +52,7 @@ router.post('/schedule', async (req: Request, res: Response) => {
       messageText,
       targetChannels,
       scheduledFor, // ISO date string
+      imageUrl: imageUrl || null,
       status: 'pending',
       createdAt: new Date().toISOString()
     });

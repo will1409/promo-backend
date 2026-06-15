@@ -4,7 +4,7 @@ import { db } from '../config/firebase';
 export const channelsRouter = Router();
 
 channelsRouter.post('/send', async (req, res) => {
-  const { userId, message, channelType, targetId } = req.body;
+  const { userId, message, channelType, targetId, imageUrl } = req.body;
 
   if (!userId || !message || !channelType || !targetId) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -24,16 +24,29 @@ channelsRouter.post('/send', async (req, res) => {
         return res.status(400).json({ error: 'Telegram Bot Token não configurado nas Integrações.' });
       }
 
-      // Telegram API Call
-      const tgResponse = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: targetId,
-          text: message,
-          parse_mode: 'HTML'
-        })
-      });
+      let tgResponse;
+      if (imageUrl) {
+        tgResponse = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: targetId,
+            photo: imageUrl,
+            caption: message,
+            parse_mode: 'HTML'
+          })
+        });
+      } else {
+        tgResponse = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: targetId,
+            text: message,
+            parse_mode: 'HTML'
+          })
+        });
+      }
 
       const tgData: any = await tgResponse.json();
       if (!tgData.ok) {
@@ -43,7 +56,7 @@ channelsRouter.post('/send', async (req, res) => {
 
     } else if (channelType === 'whatsapp') {
       const { sendWhatsAppMessage } = require('../services/whatsapp');
-      await sendWhatsAppMessage(userId, targetId, message);
+      await sendWhatsAppMessage(userId, targetId, message, imageUrl);
       result = 'Mensagem enviada via Baileys';
 
     } else {
