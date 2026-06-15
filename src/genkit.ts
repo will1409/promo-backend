@@ -56,7 +56,7 @@ Responda usando a estrutura fornecida.`;
 
   // Chama o modelo Gemini via Genkit
   const response = await ai.generate({
-    model: gemini15Flash,
+    model: 'googleai/gemini-2.5-flash',
     prompt: prompt,
     output: { schema: OfferOutputSchema },
     config: {
@@ -107,7 +107,7 @@ export const chatFlow = ai.defineFlow({
   promptText += `Assistente: `;
 
   const response = await ai.generate({
-    model: gemini15Flash,
+    model: 'googleai/gemini-2.5-flash',
     prompt: promptText,
     config: { temperature: 0.7 }
   });
@@ -151,10 +151,10 @@ Regras IMPORTANTÍSSIMAS:
 Responda usando o JSON Schema fornecido.`;
 
   const response = await ai.generate({
-    model: gemini15Flash,
+    model: 'googleai/gemini-2.5-flash',
     prompt: prompt,
     output: { schema: CreativeOutputSchema },
-    config: { temperature: 0.1 } // Baixa temperatura para manter precisão
+    config: { temperature: 0.1 }
   });
 
   if (!response.output) throw new Error('Falha ao gerar dados do criativo.');
