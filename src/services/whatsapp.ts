@@ -89,9 +89,20 @@ export const logoutWhatsApp = async (userId: string) => {
 };
 
 export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string) => {
-  const session = sessions[userId];
+  let session = sessions[userId];
   if (!session || session.status !== 'connected') {
-    throw new Error('WhatsApp não está conectado.');
+    console.log(`[WhatsApp] Sessão não encontrada na memória para ${userId}, tentando iniciar...`);
+    session = await startWhatsAppSession(userId);
+    
+    let retries = 0;
+    while (session.status !== 'connected' && retries < 15) {
+      await new Promise(r => setTimeout(r, 1000));
+      retries++;
+    }
+
+    if (session.status !== 'connected') {
+      throw new Error('WhatsApp não pôde ser conectado.');
+    }
   }
 
   // Ensure targetId format is correct (JID)
