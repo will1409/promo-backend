@@ -7,11 +7,15 @@ import creativesRouter from './routes/creatives';
 import dashboardRouter from './routes/dashboard';
 import { channelsRouter } from './routes/channels';
 import { whatsappRouter } from './routes/whatsapp';
+import { startScheduler } from './services/scheduler';
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3001;
+
+// Inicia o Scheduler
+startScheduler();
 
 // Middlewares
 app.use(cors({

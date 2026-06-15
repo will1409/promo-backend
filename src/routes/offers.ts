@@ -39,4 +39,28 @@ router.get('/:userId', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/offers/schedule — Agendar oferta
+router.post('/schedule', async (req: Request, res: Response) => {
+  try {
+    const { userId, messageText, targetChannels, scheduledFor } = req.body;
+    if (!userId || !messageText || !targetChannels || !scheduledFor) {
+      return res.status(400).json({ error: 'Faltam campos obrigatórios' });
+    }
+
+    const docRef = await db.collection('scheduled_offers').add({
+      userId,
+      messageText,
+      targetChannels,
+      scheduledFor, // ISO date string
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    });
+
+    return res.json({ success: true, id: docRef.id });
+  } catch (error: any) {
+    console.error('[/api/offers/schedule]', error.message);
+    return res.status(500).json({ error: 'Erro ao agendar oferta.' });
+  }
+});
+
 export default router;
