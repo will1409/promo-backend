@@ -7,43 +7,51 @@ const router = Router();
 
 export async function fetchPageData(url: string, integrations: any = {}) {
   try {
-    // 1. Resolve redirect manually to get the final URL (solves amzn.to, shope.ee)
     let finalUrl = url;
-    for (let i = 0; i < 3; i++) {
-      try {
-        const res = await fetch(finalUrl, { 
-          redirect: 'manual',
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-        });
-        if (res.status >= 300 && res.status < 400) {
-          const loc = res.headers.get('location');
-          if (loc) {
-            finalUrl = loc.startsWith('http') ? loc : new URL(loc, finalUrl).toString();
-          } else break;
-        } else break;
-      } catch (e) { break; }
-    }
-
-    // 2. Fetch HTML from final URL (Use ScraperAPI if available)
-    let fetchUrl = finalUrl;
-    let fetchHeaders: any = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-    };
+    let html = '';
 
     if (integrations.scraperApiKey) {
-      // Usa o proxy do ScraperAPI para burlar o bloqueio!
-      fetchUrl = `http://api.scraperapi.com?api_key=${integrations.scraperApiKey}&url=${encodeURIComponent(finalUrl)}`;
-      // Quando usamos scraper, headers customizados não são necessários
-      fetchHeaders = undefined;
-    }
+      // 1. Usa o proxy do ScraperAPI para burlar o bloqueio e seguir redirects automaticamente!
+      const fetchUrl = `http://api.scraperapi.com?api_key=${integrations.scraperApiKey}&url=${encodeURIComponent(url)}&render=true`;
+      const response = await fetch(fetchUrl);
+      if (response.ok) {
+        html = await response.text();
+      } else {
+        return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl: url };
+      }
+    } else {
+      // 1. Resolve redirect manually to get the final URL (solves amzn.to, shope.ee)
+      for (let i = 0; i < 3; i++) {
+        try {
+          const res = await fetch(finalUrl, { 
+            redirect: 'manual',
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+          });
+          if (res.status >= 300 && res.status < 400) {
+            const loc = res.headers.get('location');
+            // Evitar cair no bloqueio da shopee que redireciona para error_page
+            if (loc && !loc.includes('error_page')) {
+              finalUrl = loc.startsWith('http') ? loc : new URL(loc, finalUrl).toString();
+            } else break;
+          } else break;
+        } catch (e) { break; }
+      }
 
-    const response = await fetch(fetchUrl, { headers: fetchHeaders });
-    
-    if (!response.ok) return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl };
-    
-    const html = await response.text();
+      // 2. Fetch HTML from final URL
+      const response = await fetch(finalUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        }
+      });
+      
+      if (response.ok) {
+        html = await response.text();
+      } else {
+        return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl };
+      }
+    }
     
     // Extract Image
     let imageUrl;
