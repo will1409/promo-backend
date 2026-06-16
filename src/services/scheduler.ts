@@ -100,6 +100,15 @@ export const startScheduler = () => {
             console.log(`Buscando dados da página para: ${linkUrl}`);
             const extracted = await fetchPageData(linkUrl, integrations);
             const imageUrl = extracted.imageUrl || null;
+
+            // 2.5 Extrair informações com Genkit
+            console.log(`Extraindo informações com Genkit para: ${linkUrl}`);
+            const creativeData = await generateCreativeFlow({
+              linkUrl: linkUrl,
+              finalUrl: extracted.finalUrl,
+              pageTitle: extracted.pageTitle,
+              htmlContent: extracted.htmlContent
+            });
             
             let platform = 'desconhecida';
             if (linkUrl.includes('amazon') || linkUrl.includes('amzn')) platform = 'amazon';
@@ -107,11 +116,11 @@ export const startScheduler = () => {
             else if (linkUrl.includes('mercadolivre') || linkUrl.includes('meli')) platform = 'mercadolivre';
 
             // 3. Gerar textos de oferta usando IA
-            console.log(`Gerando IA para: ${extracted.productName}`);
+            console.log(`Gerando IA para: ${creativeData.productName}`);
             const aiOffer = await generateOfferFlow({
-              productName: extracted.productName || 'Oferta Imperdível',
-              currentPrice: extracted.price || 'Confira no site',
-              oldPrice: extracted.oldPrice || '',
+              productName: creativeData.productName || 'Oferta Imperdível',
+              currentPrice: creativeData.price || 'Confira no site',
+              oldPrice: creativeData.oldPrice || '',
               category: '',
               platform,
               affiliateLink: linkUrl
