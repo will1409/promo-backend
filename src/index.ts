@@ -56,7 +56,7 @@ app.use('/api/creatives', creativesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/channels', channelsRouter);
 app.use('/api/whatsapp', whatsappRouter);
-app.use('/api/campaigns', campaignsRouter);
+app.use('/api/esteiras', campaignsRouter);
 
 
 
