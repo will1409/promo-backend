@@ -16,9 +16,9 @@ whatsappRouter.post('/connect', async (req, res) => {
   }
 });
 
-whatsappRouter.get('/status/:userId', (req, res) => {
+whatsappRouter.get('/status/:userId', async (req, res) => {
   const { userId } = req.params;
-  const status = getWhatsAppStatus(userId);
+  const status = await getWhatsAppStatus(userId);
   res.json(status);
 });
 

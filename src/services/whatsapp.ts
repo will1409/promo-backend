@@ -74,9 +74,23 @@ export const startWhatsAppSession = async (userId: string) => {
   return sessions[userId];
 };
 
-export const getWhatsAppStatus = (userId: string) => {
+import { db } from '../config/firebase';
+
+export const getWhatsAppStatus = async (userId: string) => {
   const session = sessions[userId];
-  if (!session) return { status: 'disconnected', qr: null };
+  if (!session) {
+    try {
+      const credsSnap = await db.collection('users').doc(userId).collection('whatsapp_auth').doc('creds').get();
+      if (credsSnap.exists) {
+        // Start session in background
+        startWhatsAppSession(userId).catch(e => console.error('Failed to auto-start WA session', e));
+        return { status: 'connecting', qr: null };
+      }
+    } catch (e) {
+      console.error('Error checking WA creds', e);
+    }
+    return { status: 'disconnected', qr: null };
+  }
   return { status: session.status, qr: session.qr };
 };
 
