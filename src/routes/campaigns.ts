@@ -36,8 +36,9 @@ router.post('/create', async (req: Request, res: Response) => {
 router.get('/:userId', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    const snapshot = await db.collection('campaigns').where('userId', '==', userId).orderBy('createdAt', 'desc').get();
+    const snapshot = await db.collection('campaigns').where('userId', '==', userId).get();
     const campaigns = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    campaigns.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     return res.json({ success: true, data: campaigns });
   } catch (error: any) {
     console.error('[/api/campaigns/:userId]', error.message);
