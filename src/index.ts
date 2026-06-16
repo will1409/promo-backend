@@ -7,6 +7,7 @@ import creativesRouter from './routes/creatives';
 import dashboardRouter from './routes/dashboard';
 import { channelsRouter } from './routes/channels';
 import { whatsappRouter } from './routes/whatsapp';
+import campaignsRouter from './routes/campaigns';
 import { startScheduler } from './services/scheduler';
 
 dotenv.config();
@@ -55,6 +56,7 @@ app.use('/api/creatives', creativesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/channels', channelsRouter);
 app.use('/api/whatsapp', whatsappRouter);
+app.use('/api/campaigns', campaignsRouter);
 
 
 

@@ -5,7 +5,7 @@ import { db } from '../config/firebase';
 
 const router = Router();
 
-async function fetchPageData(url: string, integrations: any = {}) {
+export async function fetchPageData(url: string, integrations: any = {}) {
   try {
     // 1. Resolve redirect manually to get the final URL (solves amzn.to, shope.ee)
     let finalUrl = url;
