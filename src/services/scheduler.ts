@@ -87,10 +87,43 @@ export const startScheduler = () => {
           console.log(`🚀 Processando link da campanha [${name}]: ${linkUrl}`);
 
           try {
-            // 1. Send the raw link directly to Target Channels
+            // 1. Fetch Integration Settings
+            let integrations: any = {};
+            try {
+              const docSnap = await db.doc(`users/${userId}/settings/integrations`).get();
+              if (docSnap.exists) integrations = docSnap.data() || {};
+            } catch (e) {
+              console.error('Erro ao buscar integrações:', e);
+            }
+
+            // 2. Extrair dados da página original
+            console.log(`Buscando dados da página para: ${linkUrl}`);
+            const extracted = await fetchPageData(linkUrl, integrations);
+            const imageUrl = extracted.imageUrl || null;
+            
+            let platform = 'desconhecida';
+            if (linkUrl.includes('amazon') || linkUrl.includes('amzn')) platform = 'amazon';
+            else if (linkUrl.includes('shopee') || linkUrl.includes('shp')) platform = 'shopee';
+            else if (linkUrl.includes('mercadolivre') || linkUrl.includes('meli')) platform = 'mercadolivre';
+
+            // 3. Gerar textos de oferta usando IA
+            console.log(`Gerando IA para: ${extracted.productName}`);
+            const aiOffer = await generateOfferFlow({
+              productName: extracted.productName || 'Oferta Imperdível',
+              currentPrice: extracted.price || 'Confira no site',
+              oldPrice: extracted.oldPrice || '',
+              category: '',
+              platform,
+              affiliateLink: linkUrl
+            });
+
+            // 4. Enviar para os canais
             let sentCount = 0;
             for (const channel of targetChannels) {
-              const msgContent = `Confira esta oferta: ${linkUrl}`;
+              let msgContent = `Confira esta oferta: ${linkUrl}`;
+              if (channel.type === 'whatsapp') msgContent = aiOffer.whatsapp;
+              else if (channel.type === 'telegram') msgContent = aiOffer.telegram;
+              else if (channel.type === 'instagram') msgContent = aiOffer.instagram;
               
               try {
                 const res = await fetch(`http://127.0.0.1:${port}/api/channels/send`, {
@@ -101,7 +134,7 @@ export const startScheduler = () => {
                     channelType: channel.type,
                     targetId: channel.targetId || channel.id,
                     message: msgContent,
-                    imageUrl: null
+                    imageUrl: imageUrl
                   })
                 });
                 const data: any = await res.json();
