@@ -20,7 +20,7 @@ startScheduler();
 
 // Middlewares
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://pegue-a-promo.web.app'],
+  origin: true,
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
