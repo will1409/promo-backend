@@ -12,7 +12,7 @@ export async function fetchPageData(url: string, integrations: any = {}) {
 
     if (process.env.ZENROWS_API_KEY) {
       // Usando ZenRows para burlar bloqueios e renderizar a página
-      const fetchUrl = `https://api.zenrows.com/v1/?apikey=${process.env.ZENROWS_API_KEY}&url=${encodeURIComponent(url)}&js_render=true&antibot=true`;
+      const fetchUrl = `https://api.zenrows.com/v1/?apikey=${process.env.ZENROWS_API_KEY}&url=${encodeURIComponent(url)}&js_render=true&antibot=true&wait=5000`;
       const response = await fetch(fetchUrl);
       if (response.ok) {
         html = await response.text();
@@ -115,9 +115,7 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
     const hasScraper = !!integrations.scraperApiKey;
     const hasZenRows = !!process.env.ZENROWS_API_KEY;
 
-    if (!hasZenRows && !hasScraper && !hasShopee && !hasMeli && !hasAmazon) {
-      return res.status(403).json({ error: 'Você precisa conectar alguma API na aba "Integrações" ou ter o ZenRows configurado no servidor para usar a inteligência artificial com links originais.' });
-    }
+    // Retirada a obrigatoriedade de ter uma API configurada para extração manual (Automação Expressa)
 
     const { imageUrl, pageTitle, htmlContent, finalUrl } = await fetchPageData(linkUrl, integrations);
     
