@@ -99,7 +99,7 @@ export const startScheduler = () => {
                   body: JSON.stringify({
                     userId,
                     channelType: channel.type,
-                    targetId: channel.id,
+                    targetId: channel.targetId || channel.id,
                     message: msgContent,
                     imageUrl: null
                   })
