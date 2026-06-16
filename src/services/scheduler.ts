@@ -87,42 +87,10 @@ export const startScheduler = () => {
           console.log(`🚀 Processando link da campanha [${name}]: ${linkUrl}`);
 
           try {
-            // 1. Get user integrations (ScraperAPI etc)
-            let integrations: any = {};
-            const intSnap = await db.doc(`users/${userId}/settings/integrations`).get();
-            if (intSnap.exists) integrations = intSnap.data() || {};
-
-            // 2. Extract Page Data
-            const { imageUrl, pageTitle, htmlContent, finalUrl } = await fetchPageData(linkUrl, integrations);
-            
-            // 3. Generate Creative Data
-            const creative = await generateCreativeFlow({ linkUrl, finalUrl, pageTitle, htmlContent });
-            
-            // 4. Identify Platform
-            let platform = 'desconhecida';
-            const lowerLink = linkUrl.toLowerCase();
-            if (lowerLink.includes('amazon') || lowerLink.includes('amzn')) platform = 'amazon';
-            else if (lowerLink.includes('shopee') || lowerLink.includes('shp')) platform = 'shopee';
-            else if (lowerLink.includes('mercadolivre') || lowerLink.includes('meli')) platform = 'mercadolivre';
-            else if (lowerLink.includes('aliexpress') || lowerLink.includes('ali')) platform = 'aliexpress';
-            else if (lowerLink.includes('magazineluiza') || lowerLink.includes('magalu')) platform = 'magalu';
-
-            // 5. Generate Text Copy
-            const offer = await generateOfferFlow({
-              productName: creative.productName || 'Oferta Imperdível',
-              currentPrice: creative.price || 'Confira no site',
-              oldPrice: creative.oldPrice || '',
-              category: '',
-              platform,
-              affiliateLink: linkUrl,
-              userId
-            });
-
-            // 6. Send to Target Channels
+            // 1. Send the raw link directly to Target Channels
             let sentCount = 0;
             for (const channel of targetChannels) {
-              // Decide format based on channel type
-              const msgContent = channel.type === 'telegram' && offer.telegram ? offer.telegram : (offer.whatsapp || offer.description);
+              const msgContent = `Confira esta oferta: ${linkUrl}`;
               
               try {
                 const res = await fetch(`http://127.0.0.1:${port}/api/channels/send`, {
@@ -133,7 +101,7 @@ export const startScheduler = () => {
                     channelType: channel.type,
                     targetId: channel.id,
                     message: msgContent,
-                    imageUrl: imageUrl
+                    imageUrl: null
                   })
                 });
                 const data: any = await res.json();
