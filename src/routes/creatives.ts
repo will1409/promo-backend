@@ -91,8 +91,13 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
       }
     }
 
-    if (!integrations.scraperApiKey) {
-      return res.status(403).json({ error: 'Você precisa conectar sua API na aba "Integrações" para usar a inteligência artificial com links originais.' });
+    const hasShopee = !!(integrations.shopeeAppId && integrations.shopeeAppSecret);
+    const hasMeli = !!(integrations.mercadoLivreAppId && integrations.mercadoLivreClientSecret);
+    const hasAmazon = !!(integrations.amazonAccessKey && integrations.amazonSecretKey);
+    const hasScraper = !!integrations.scraperApiKey;
+
+    if (!hasScraper && !hasShopee && !hasMeli && !hasAmazon) {
+      return res.status(403).json({ error: 'Você precisa conectar alguma API na aba "Integrações" para usar a inteligência artificial com links originais.' });
     }
 
     const { imageUrl, pageTitle, htmlContent, finalUrl } = await fetchPageData(linkUrl, integrations);
