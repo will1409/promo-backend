@@ -117,8 +117,9 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
 
     // Retirada a obrigatoriedade de ter uma API configurada para extração manual (Automação Expressa)
 
-    const { imageUrl, pageTitle, htmlContent, finalUrl } = await fetchPageData(linkUrl, integrations);
+    let { imageUrl, pageTitle, htmlContent, finalUrl } = await fetchPageData(linkUrl, integrations);
     
+    // Se o usuário tiver integração Shopee (ou usar o link encurtado que a Groq não resolve), usamos o motor inteligente (Gemini) só pra extrair o link curto. O resto continua na Groq.
     const generated = await generateCreativeFlow({ linkUrl, finalUrl, pageTitle, htmlContent });
     
     return res.json({ success: true, data: { ...generated, imageUrl } });

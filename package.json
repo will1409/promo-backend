@@ -16,6 +16,8 @@
   "dependencies": {
     "@genkit-ai/core": "^1.37.0",
     "@genkit-ai/firebase": "^1.37.0",
+    "@genkit-ai/googleai": "^1.28.0",
+    "@google/genai": "^2.8.0",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

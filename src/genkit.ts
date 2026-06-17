@@ -1,10 +1,15 @@
 import { genkit, z } from 'genkit';
 import { groq } from 'genkitx-groq';
+import { googleAI, gemini15Flash } from '@genkit-ai/googleai';
 import { db } from './config/firebase';
 
 // Inicializa o Genkit configurado com o plugin Groq
 const ai = genkit({
-  plugins: [groq()],
+  plugins: [
+    groq({ apiKey: process.env.GROQ_API_KEY }),
+    googleAI({ apiKey: process.env.GEMINI_API_KEY })
+  ],
+  model: 'groq/llama-3.1-8b-instant' // Default model
 });
 
 export const OfferInputSchema = z.object({
@@ -156,7 +161,7 @@ Regras IMPORTANTÍSSIMAS:
 Responda usando o JSON Schema fornecido.`;
 
   const response = await ai.generate({
-    model: 'groq/llama-3.1-8b-instant',
+    model: 'gemini15Flash',
     prompt: prompt,
     output: { schema: CreativeOutputSchema },
     config: { temperature: 0.1 }
