@@ -1,62 +1,95 @@
-import puppeteer from 'puppeteer';
+import * as cheerio from 'cheerio';
 
 export async function resolveShopeeShortlink(shortLink: string) {
-  let browser;
+  // A ponte do Telegram funciona assim:
+  // 1. Enviamos o link para um canal público via API do Bot
+  // 2. O Telegram gera o preview
+  // 3. Raspamos a página pública do canal (HTML) para pegar o preview
+  
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const channelId = process.env.TELEGRAM_CHANNEL_ID; // Ex: @meu_canal_publico
+
+  if (!botToken || !channelId) {
+    console.warn('Telegram Bridge não configurada. Faltam chaves.');
+    return null;
+  }
+
   try {
-    // Configuração extrema de economia de RAM para rodar no Render Free (512MB)
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--no-zygote',
-        '--single-process',
-        '--disable-extensions',
-        '--js-flags="--max-old-space-size=100"' // Limita memória JS do Chrome
-      ]
+    // 1. Enviar mensagem para o canal
+    const sendUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const sendRes = await fetch(sendUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: channelId,
+        text: shortLink
+      })
     });
-
-    const page = await browser.newPage();
     
-    // Ocultar navegação fantasma para evitar bloqueios extras da shopee
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    await page.setExtraHTTPHeaders({
-      'Accept-Language': 'pt-BR,pt;q=0.9'
-    });
+    const sendData = await sendRes.json();
+    if (!sendData.ok) {
+      console.error('Erro ao enviar para Telegram:', sendData);
+      return null;
+    }
+    
+    const messageId = sendData.result.message_id;
 
-    // Bloquear imagens, fontes e CSS para economizar RAM e carregar mais rápido
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
-        req.abort();
-      } else {
-        req.continue();
+    // 2. Aguardar 3 segundos para o Telegram gerar o preview internamente
+    await new Promise(r => setTimeout(r, 3000));
+
+    // 3. Fazer Web Scraping da página pública do canal
+    // O channelId costuma ser @nome_do_canal. Precisamos apenas do "nome_do_canal"
+    const channelName = channelId.replace('@', '');
+    const publicUrl = `https://t.me/s/${channelName}/${messageId}`;
+    
+    const pageRes = await fetch(publicUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    });
+    const html = await pageRes.text();
+    const $ = cheerio.load(html);
+
+    // 4. Extrair os dados da caixinha de preview
+    // <a class="tgme_widget_message_link_preview" href="FINAL_URL">
+    // <div class="link_preview_image" style="background-image:url('IMAGE_URL')">
+    // <div class="link_preview_title">TITLE</div>
+    
+    const previewBox = $('.tgme_widget_message_link_preview');
+    if (previewBox.length === 0) {
+      console.warn('Telegram não gerou o preview a tempo ou a estrutura mudou.');
+    }
+
+    let finalUrl = previewBox.attr('href') || shortLink;
+    let pageTitle = $('.link_preview_title').text() || '';
+    let imageUrl = '';
+    
+    const bgImage = $('.link_preview_image').css('background-image');
+    if (bgImage) {
+      // url('https://...') -> https://...
+      const match = bgImage.match(/url\(['"]?(.*?)['"]?\)/);
+      if (match && match[1]) {
+        imageUrl = match[1];
       }
-    });
+    }
 
-    // Navega até o link da shopee e espera o DOM renderizar
-    await page.goto(shortLink, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    
-    // A shopee faz um redirecionamento JS, precisamos esperar o URL final e a página carregar
-    await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
+    // 5. Apagar a mensagem do canal para não sujar
+    fetch(`https://api.telegram.org/bot${botToken}/deleteMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: channelId, message_id: messageId })
+    }).catch(() => {});
 
-    // Aguardar alguns segundos para o React/Vue carregar os dados reais na tela
-    await new Promise(r => setTimeout(r, 4000));
+    // Retorna os dados simulando a estrutura original
+    const fakeHtml = `
+      <html><head>
+        <title>${pageTitle}</title>
+        <meta property="og:image" content="${imageUrl}">
+      </head><body></body></html>
+    `;
 
-    const finalUrl = page.url();
-    const pageTitle = await page.title();
-    const htmlContent = await page.content();
-
-    return { finalUrl, pageTitle, htmlContent };
+    return { finalUrl, pageTitle, htmlContent: fakeHtml };
 
   } catch (error) {
-    console.error('Erro no shopeeResolver:', error);
+    console.error('Erro na Ponte do Telegram:', error);
     return null;
-  } finally {
-    if (browser) {
-      await browser.close().catch(() => {});
-    }
   }
 }
