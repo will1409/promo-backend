@@ -61,7 +61,7 @@ Responda usando a estrutura fornecida.`;
 
   // Chama o modelo Gemini via Genkit
   const response = await ai.generate({
-    model: 'googleai/gemini-2.0-flash',
+    model: 'googleai/gemini-1.5-pro',
     prompt: prompt,
     output: { schema: OfferOutputSchema },
     config: {
@@ -112,7 +112,7 @@ export const chatFlow = ai.defineFlow({
   promptText += `Assistente: `;
 
   const response = await ai.generate({
-    model: 'googleai/gemini-2.0-flash',
+    model: 'googleai/gemini-1.5-pro',
     prompt: promptText,
     config: { temperature: 0.7 }
   });
@@ -156,7 +156,7 @@ Regras IMPORTANTÍSSIMAS:
 Responda usando o JSON Schema fornecido.`;
 
   const response = await ai.generate({
-    model: 'googleai/gemini-2.0-flash',
+    model: 'googleai/gemini-1.5-pro',
     prompt: prompt,
     output: { schema: CreativeOutputSchema },
     config: { temperature: 0.1 }
