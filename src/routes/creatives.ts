@@ -123,8 +123,8 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
     
     return res.json({ success: true, data: { ...generated, imageUrl } });
   } catch (error: any) {
-    console.error('[/api/creatives/generate-from-link]', error.message);
-    return res.status(500).json({ error: 'Erro ao gerar dados do criativo.' });
+    console.error('[/api/creatives/generate-from-link]', error);
+    return res.status(500).json({ error: `Erro ao gerar dados do criativo: ${error.message || String(error)}` });
   }
 });
 
