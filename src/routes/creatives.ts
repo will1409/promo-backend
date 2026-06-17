@@ -146,7 +146,10 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
     // Se o usuário tiver integração Shopee (ou usar o link encurtado que a Groq não resolve), usamos o motor inteligente (Gemini) só pra extrair o link curto. O resto continua na Groq.
     const generated = await generateCreativeFlow({ linkUrl, finalUrl, pageTitle, htmlContent });
     
-    return res.json({ success: true, data: { ...generated, imageUrl } });
+    // Prioriza a imagem extraída pela IA se existir e for válida, senão usa a do scrape.
+    const finalImageUrl = generated.imageUrl || imageUrl;
+    
+    return res.json({ success: true, data: { ...generated, imageUrl: finalImageUrl } });
   } catch (error: any) {
     console.error('[/api/creatives/generate-from-link]', error);
     return res.status(500).json({ error: `Erro ao gerar dados do criativo: ${error.message || String(error)}` });

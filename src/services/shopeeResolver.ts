@@ -83,7 +83,10 @@ export async function resolveShopeeShortlink(shortLink: string) {
       <html><head>
         <title>${pageTitle}</title>
         <meta property="og:image" content="${imageUrl}">
-      </head><body></body></html>
+        <meta name="description" content="${$('.link_preview_description').text() || ''}">
+      </head><body>
+        <div id="raw-preview">${previewBox.html()}</div>
+      </body></html>
     `;
 
     return { finalUrl, pageTitle, htmlContent: fakeHtml };

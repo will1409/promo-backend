@@ -132,8 +132,10 @@ export const CreativeInputSchema = z.object({
 
 export const CreativeOutputSchema = z.object({
   productName: z.string().optional(),
+  description: z.string().optional(),
   price: z.string().optional(),
   oldPrice: z.string().optional(),
+  imageUrl: z.string().optional(),
 });
 
 // Fluxo para ler link e sugerir dados do criativo
@@ -144,19 +146,18 @@ export const generateCreativeFlow = ai.defineFlow({
 }, async (input) => {
   const prompt = `Você é um robô extrator de dados de e-commerce. O usuário colou o seguinte link:
 URL Original: ${input.linkUrl}
-${input.finalUrl ? `URL Final (após redirecionamento): ${input.finalUrl}` : ''}
-${input.pageTitle ? `Título da Página: ${input.pageTitle}` : ''}
-${input.htmlContent ? `Trecho do HTML:\n${input.htmlContent}` : ''}
+${input.finalUrl ? `URL Final: ${input.finalUrl}` : ''}
+${input.pageTitle ? `Título: ${input.pageTitle}` : ''}
+${input.htmlContent ? `Conteúdo HTML:\n${input.htmlContent}` : ''}
 
-Sua missão é descobrir as informações reais do produto.
-Regras IMPORTANTÍSSIMAS:
-1. Extraia o Nome do Produto exato. Não resuma demais, não invente nomes.
-2. Se o HTML não mostrar o produto ou parecer um bloqueio de robô, tente extrair o nome do produto lendo a URL Final.
-3. EXTRAIA APENAS VALORES REAIS DO SITE. NUNCA invente preços, descrições ou descontos. Se você não conseguir achar o preço exato no texto fornecido, deixe os campos de preço COMPLETAMENTE VAZIOS. Não faça sugestões.
-4. O preço deve ser apenas números e ponto (Ex: 199.90).
-5. Se não conseguir descobrir o produto de forma alguma, deixe os campos vazios. NÃO INVENTE PRODUTOS ALEATÓRIOS.
+Sua missão é extrair as informações originais do produto.
+1. Extraia o "productName" exato.
+2. Extraia a "description" resumindo as características principais do produto encontradas no texto.
+3. Extraia o "price" atual do produto. Se não encontrar um preço óbvio, procure no HTML ou no texto.
+4. Extraia o "oldPrice" (preço antigo/riscado) se houver.
+5. Extraia a "imageUrl" procurando por tags <img src="..."> ou og:image que mostrem a foto do produto.
 
-Responda usando o JSON Schema fornecido.`;
+Responda no formato JSON solicitado.`;
 
   const response = await ai.generate({
     model: 'groq/llama-3.1-8b-instant',
