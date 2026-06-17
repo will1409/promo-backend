@@ -27,7 +27,7 @@ export async function fetchPageData(url: string, integrations: any = {}) {
     let html = '';
 
     // 1. Resolver Shopee
-    if (url.includes('shopee.com') || url.includes('shope.ee')) {
+    if (url.includes('shopee.com') || url.includes('shope.ee') || url.includes('shp.ee')) {
       const shopeeData = await resolveShopeeShortlink(url);
       if (shopeeData) {
         return extractDataFromHtml(shopeeData.htmlContent, shopeeData.finalUrl, shopeeData.pageTitle);
