@@ -78,8 +78,8 @@ export async function fetchPageData(url: string, integrations: any = {}) {
     const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
     if (titleMatch && titleMatch[1]) pageTitle = titleMatch[1];
 
-    // Get a chunk of HTML (first 15000 chars) to pass to Gemini
-    const htmlContent = html.substring(0, 15000);
+    // Get a chunk of HTML (first 6000 chars) to pass to Gemini/Groq
+    const htmlContent = html.substring(0, 6000);
 
     return { imageUrl, pageTitle, htmlContent, finalUrl };
   } catch (error) {
