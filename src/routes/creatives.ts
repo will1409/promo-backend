@@ -10,44 +10,44 @@ export async function fetchPageData(url: string, integrations: any = {}) {
     let finalUrl = url;
     let html = '';
 
+    // 1. Resolve redirect manually to get the final URL first (solves amzn.to, shope.ee, s.shopee.com.br)
+    for (let i = 0; i < 3; i++) {
+      try {
+        const res = await fetch(finalUrl, { 
+          redirect: 'manual',
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+        });
+        if (res.status >= 300 && res.status < 400) {
+          const loc = res.headers.get('location');
+          // Evitar cair no bloqueio da shopee que redireciona para error_page
+          if (loc && !loc.includes('error_page')) {
+            finalUrl = loc.startsWith('http') ? loc : new URL(loc, finalUrl).toString();
+          } else break;
+        } else break;
+      } catch (e) { break; }
+    }
+
     if (process.env.ZENROWS_API_KEY) {
       // Usando ZenRows para burlar bloqueios e renderizar a página
-      const fetchUrl = `https://api.zenrows.com/v1/?apikey=${process.env.ZENROWS_API_KEY}&url=${encodeURIComponent(url)}&js_render=true&antibot=true&wait=5000`;
+      const fetchUrl = `https://api.zenrows.com/v1/?apikey=${process.env.ZENROWS_API_KEY}&url=${encodeURIComponent(finalUrl)}&js_render=true&antibot=true&wait=5000&premium_proxy=true`;
       const response = await fetch(fetchUrl);
       if (response.ok) {
         html = await response.text();
       } else {
         console.error('Erro no ZenRows:', response.status, await response.text());
-        return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl: url };
+        return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl };
       }
     } else if (integrations.scraperApiKey) {
-      // 1. Usa o proxy do ScraperAPI para burlar o bloqueio e seguir redirects automaticamente!
-      const fetchUrl = `http://api.scraperapi.com?api_key=${integrations.scraperApiKey}&url=${encodeURIComponent(url)}&render=true`;
+      // Usa o proxy do ScraperAPI para burlar o bloqueio
+      const fetchUrl = `http://api.scraperapi.com?api_key=${integrations.scraperApiKey}&url=${encodeURIComponent(finalUrl)}&render=true`;
       const response = await fetch(fetchUrl);
       if (response.ok) {
         html = await response.text();
       } else {
-        return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl: url };
+        return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl };
       }
     } else {
-      // 1. Resolve redirect manually to get the final URL (solves amzn.to, shope.ee)
-      for (let i = 0; i < 3; i++) {
-        try {
-          const res = await fetch(finalUrl, { 
-            redirect: 'manual',
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-          });
-          if (res.status >= 300 && res.status < 400) {
-            const loc = res.headers.get('location');
-            // Evitar cair no bloqueio da shopee que redireciona para error_page
-            if (loc && !loc.includes('error_page')) {
-              finalUrl = loc.startsWith('http') ? loc : new URL(loc, finalUrl).toString();
-            } else break;
-          } else break;
-        } catch (e) { break; }
-      }
-
-      // 2. Fetch HTML from final URL
+      // 2. Fetch HTML from final URL diretamente (sem proxy)
       const response = await fetch(finalUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
