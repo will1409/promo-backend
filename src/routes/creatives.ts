@@ -1,16 +1,40 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import * as cheerio from 'cheerio';
 import { generateCreativeFlow } from '../genkit';
 import { db } from '../config/firebase';
+import { resolveShopeeShortlink } from '../services/shopeeResolver';
 
 const router = Router();
+
+function extractDataFromHtml(html: string, finalUrl: string, title?: string) {
+  const $ = cheerio.load(html);
+  
+  let imageUrl = $('meta[property="og:image"]').attr('content') || 
+                 $('meta[name="og:image"]').attr('content') ||
+                 $('#landingImage').attr('src');
+                 
+  let pageTitle = title || $('title').text() || $('meta[property="og:title"]').attr('content') || '';
+  
+  const htmlContent = html.substring(0, 6000);
+
+  return { imageUrl, pageTitle, htmlContent, finalUrl };
+}
 
 export async function fetchPageData(url: string, integrations: any = {}) {
   try {
     let finalUrl = url;
     let html = '';
 
-    // 1. Resolve redirect manually to get the final URL first (solves amzn.to, shope.ee, s.shopee.com.br)
+    // 1. Resolver Shopee
+    if (url.includes('shopee.com') || url.includes('shope.ee')) {
+      const shopeeData = await resolveShopeeShortlink(url);
+      if (shopeeData) {
+        return extractDataFromHtml(shopeeData.htmlContent, shopeeData.finalUrl, shopeeData.pageTitle);
+      }
+    }
+
+    // 2. Resolve redirect manually to get the final URL first (solves amzn.to, etc)
     for (let i = 0; i < 3; i++) {
       try {
         const res = await fetch(finalUrl, { 
