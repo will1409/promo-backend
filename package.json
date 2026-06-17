@@ -2,7 +2,7 @@
   "name": "server",
   "version": "1.0.0",
   "description": "Pegue a Promo AI — Backend (Firebase Cloud Functions)",
-  "main": "lib/function.js",
+  "main": "lib/index.js",
   "engines": {
     "node": ">=18"
   },
