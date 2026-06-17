@@ -1,10 +1,10 @@
 import { genkit, z } from 'genkit';
-import { googleAI, gemini15Flash } from '@genkit-ai/googleai';
+import { groq } from 'genkitx-groq';
 import { db } from './config/firebase';
 
-// Inicializa o Genkit configurado com o plugin Google AI
+// Inicializa o Genkit configurado com o plugin Groq
 const ai = genkit({
-  plugins: [googleAI()],
+  plugins: [groq()],
 });
 
 export const OfferInputSchema = z.object({
@@ -61,7 +61,7 @@ Responda usando a estrutura fornecida.`;
 
   // Chama o modelo Gemini via Genkit
   const response = await ai.generate({
-    model: 'googleai/gemini-3.5-flash',
+    model: 'groq/llama-3.3-70b-versatile',
     prompt: prompt,
     output: { schema: OfferOutputSchema },
     config: {
@@ -112,7 +112,7 @@ export const chatFlow = ai.defineFlow({
   promptText += `Assistente: `;
 
   const response = await ai.generate({
-    model: 'googleai/gemini-3.5-flash',
+    model: 'groq/llama-3.3-70b-versatile',
     prompt: promptText,
     config: { temperature: 0.7 }
   });
@@ -156,7 +156,7 @@ Regras IMPORTANTÍSSIMAS:
 Responda usando o JSON Schema fornecido.`;
 
   const response = await ai.generate({
-    model: 'googleai/gemini-3.5-flash',
+    model: 'groq/llama-3.3-70b-versatile',
     prompt: prompt,
     output: { schema: CreativeOutputSchema },
     config: { temperature: 0.1 }
