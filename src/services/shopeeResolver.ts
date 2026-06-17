@@ -26,7 +26,7 @@ export async function resolveShopeeShortlink(shortLink: string) {
       })
     });
     
-    const sendData = await sendRes.json();
+    const sendData = (await sendRes.json()) as any;
     if (!sendData.ok) {
       console.error('Erro ao enviar para Telegram:', sendData);
       return null;
