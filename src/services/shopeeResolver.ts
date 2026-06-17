@@ -34,8 +34,8 @@ export async function resolveShopeeShortlink(shortLink: string) {
     
     const messageId = sendData.result.message_id;
 
-    // 2. Aguardar 3 segundos para o Telegram gerar o preview internamente
-    await new Promise(r => setTimeout(r, 3000));
+    // 2. Aguardar 6 segundos para o Telegram gerar o preview internamente (alguns links da Shopee demoram mais)
+    await new Promise(r => setTimeout(r, 6000));
 
     // 3. Fazer Web Scraping da página pública do canal
     // O channelId costuma ser @nome_do_canal. Precisamos apenas do "nome_do_canal"
