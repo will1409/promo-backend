@@ -8,11 +8,10 @@ const router = Router();
 // POST /api/offers/generate — Gera textos com Genkit Gemini
 router.post('/generate', async (req: Request, res: Response) => {
   try {
-    const { productName, currentPrice, oldPrice, category, platform, affiliateLink, userId } = req.body;
+    let { productName, currentPrice, oldPrice, category, platform, affiliateLink, userId } = req.body;
 
-    if (!productName || !currentPrice) {
-      return res.status(400).json({ error: 'productName e currentPrice são obrigatórios.' });
-    }
+    if (!productName || productName.trim() === '') productName = 'Oferta Especial';
+    if (!currentPrice || currentPrice.toString().trim() === '') currentPrice = 'Confira no site';
 
     const input = { productName, currentPrice, oldPrice, category, platform, affiliateLink, userId };
 
