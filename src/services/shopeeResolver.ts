@@ -7,8 +7,8 @@ import fetch from 'node-fetch';
  * Se as variáveis de ambiente não estiverem configuradas ou a busca falhar, retorna null.
  */
 async function fetchFromOfficialShopeeApi(keyword: string): Promise<{ title?: string, imageUrl?: string, price?: string } | null> {
-  const appId = process.env.GLOBAL_SHOPEE_APP_ID;
-  const appSecret = process.env.GLOBAL_SHOPEE_APP_SECRET;
+  const appId = process.env.GLOBAL_SHOPEE_APP_ID || '18396940613';
+  const appSecret = process.env.GLOBAL_SHOPEE_APP_SECRET || 'AFCPGMWPPRO7YXODKDHHLJDVKBU3LTJ3';
   if (!appId || !appSecret || !keyword) return null;
 
   try {
@@ -99,12 +99,21 @@ export async function resolveShopeeShortlink(shortLink: string) {
     }
   }
 
-  // 2. Agora que temos o Título, buscamos na API Oficial da Shopee o Preço e Imagem em Alta Resolução!
+  // 2. Limpar o título para a busca da API (Telegram às vezes suja o título com texto repetido)
+  let cleanTitle = pageTitle;
+  if (cleanTitle.includes('...')) {
+    cleanTitle = cleanTitle.split('...')[0].trim();
+  }
+  if (cleanTitle.includes(' - ')) {
+    cleanTitle = cleanTitle.split(' - ')[0].trim();
+  }
+
+  // 3. Agora que temos o Título limpo, buscamos na API Oficial da Shopee o Preço e Imagem em Alta Resolução!
   let finalImageUrl = telegramImageUrl;
   let officialPrice = '';
   
-  if (pageTitle) {
-    const officialData = await fetchFromOfficialShopeeApi(pageTitle);
+  if (cleanTitle) {
+    const officialData = await fetchFromOfficialShopeeApi(cleanTitle);
     if (officialData) {
       pageTitle = officialData.title || pageTitle;
       finalImageUrl = officialData.imageUrl || telegramImageUrl;

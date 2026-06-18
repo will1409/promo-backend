@@ -131,11 +131,11 @@ export const CreativeInputSchema = z.object({
 });
 
 export const CreativeOutputSchema = z.object({
-  productName: z.string(),
-  description: z.string(),
-  price: z.string(),
-  oldPrice: z.string(),
-  imageUrl: z.string(),
+  productName: z.string().default(""),
+  description: z.string().default(""),
+  price: z.string().default(""),
+  oldPrice: z.string().default(""),
+  imageUrl: z.string().default(""),
 });
 
 // Fluxo para ler link e sugerir dados do criativo
