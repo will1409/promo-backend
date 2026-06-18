@@ -3,7 +3,6 @@ import type { Request, Response } from 'express';
 import * as cheerio from 'cheerio';
 import { generateCreativeFlow } from '../genkit';
 import { db } from '../config/firebase';
-import { resolveShopeeShortlink } from '../services/shopeeResolver';
 
 const router = Router();
 
@@ -28,13 +27,34 @@ export async function fetchPageData(url: string, integrations: any = {}): Promis
     let finalUrl = url;
     let html = '';
 
-    // 1. Resolver Shopee - Abrange TODOS os domínios (shopee.com.br, s.shopee, shope.ee, shp.ee, br.shp.ee, etc)
+    // 1. Resolver Shopee usando extração de keyword e API oficial
     if (url.includes('shopee') || url.includes('shope.ee') || url.includes('shp.ee')) {
-      const shopeeData = await resolveShopeeShortlink(url);
-      if (shopeeData) {
-        const extracted = extractDataFromHtml(shopeeData.htmlContent, shopeeData.finalUrl, shopeeData.pageTitle);
-        return { ...extracted, price: shopeeData.price, imageUrl: shopeeData.imageUrl || extracted.imageUrl };
+      const urlObj = new URL(url);
+      let keyword = '';
+      if (urlObj.hostname.includes('shopee.com.br')) {
+        const pathParts = urlObj.pathname.split('/');
+        const slug = pathParts.find(p => p.includes('-i.'));
+        if (slug) keyword = decodeURIComponent(slug.split('-i.')[0].replace(/-/g, ' '));
       }
+      
+      if (!keyword && !url.startsWith('http')) {
+        keyword = url;
+      }
+
+      if (keyword) {
+        const { fetchShopeeOfficialApi } = require('../services/scraper');
+        const officialData = await fetchShopeeOfficialApi(keyword);
+        if (officialData && officialData.price) {
+          return { 
+            finalUrl: url, 
+            pageTitle: officialData.title, 
+            htmlContent: '', 
+            price: officialData.price, 
+            imageUrl: officialData.imageUrl 
+          };
+        }
+      }
+      // Se for link curto ou falhou, deixa passar para frente ou retornar vazio
     }
 
     // 2. Resolve redirect manually to get the final URL first (solves amzn.to, etc)

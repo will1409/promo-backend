@@ -138,35 +138,34 @@ export const CreativeOutputSchema = z.object({
   imageUrl: z.string().default(""),
 });
 
-// Fluxo para ler link e sugerir dados do criativo
 export const generateCreativeFlow = ai.defineFlow({
   name: 'generateCreativeFlow',
   inputSchema: CreativeInputSchema,
   outputSchema: CreativeOutputSchema,
 }, async (input) => {
-  const prompt = `Você é um robô extrator de dados. Seu único objetivo é ler os dados abaixo e retornar um JSON estrito.
-URL Original: ${input.linkUrl}
-${input.finalUrl ? `URL Final: ${input.finalUrl}` : ''}
-${input.pageTitle ? `Título: ${input.pageTitle}` : ''}
-${input.htmlContent ? `Conteúdo HTML:\n${input.htmlContent}` : ''}
+  const prompt = `Você é um redator de marketing. Seu único objetivo é ler os dados brutos de um produto e retornar um JSON estrito.
+NÃO TENTE inventar valores, use estritamente os dados fornecidos.
 
-Sua missão é extrair CÓPIAS IDÊNTICAS das informações originais, sem alterar nada.
-Você DEVE retornar APENAS um objeto JSON exatamente com a estrutura abaixo, preenchendo os valores:
+Dados Originais:
+Título: ${input.pageTitle || ''}
+Descrição: ${input.htmlContent || ''}
+Preço: ${input.linkUrl || ''} // Usando linkUrl como transporte do preço no bypass
+
+Sua missão é criar uma legenda persuasiva e copiar o preço e imagem exatos.
+Você DEVE retornar APENAS um objeto JSON exatamente com a estrutura abaixo:
 
 {
-  "productName": "nome exato do produto",
-  "description": "descrição exata do produto ou string vazia",
-  "price": "valor exato do produto (apenas números e vírgulas) ou string vazia",
-  "oldPrice": "valor antigo/riscado ou string vazia",
-  "imageUrl": "URL exata da imagem do produto ou string vazia"
+  "productName": "título atrativo baseado no título original",
+  "description": "descrição persuasiva com emojis. Não inclua link.",
+  "price": "o valor exato fornecido",
+  "oldPrice": "valor antigo se houver, ou vazio",
+  "imageUrl": "copie a URL da imagem fornecida"
 }
 
-REGRA CRÍTICA DE JSON:
-- NÃO adicione numeração (1, 2, 3).
+REGRA CRÍTICA:
 - NÃO adicione crases de markdown (\`\`\`json).
-- O valor de TODAS as chaves deve ser do tipo STRING.
-- Se não houver informação, use uma string vazia "".
-- Retorne apenas as chaves e os valores dentro de um único bloco {}.`;
+- O valor de TODAS as chaves deve ser STRING.
+- Se não houver informação, use uma string vazia "".`;
 
   const response = await ai.generate({
     model: 'groq/llama-3.1-8b-instant',
@@ -175,15 +174,15 @@ REGRA CRÍTICA DE JSON:
   });
 
   const text = response.text;
-  let parsed = { productName: "", description: "", price: "", oldPrice: "", imageUrl: "" };
+  let parsed = { productName: input.pageTitle || "Oferta Especial", description: "Confira essa oferta!", price: "", oldPrice: "", imageUrl: "" };
   
   try {
     const match = text.match(/\{[\s\S]*\}/);
     if (match) {
       const extractedJson = JSON.parse(match[0]);
       parsed = {
-        productName: extractedJson.productName || "",
-        description: extractedJson.description || "",
+        productName: extractedJson.productName || input.pageTitle || "",
+        description: extractedJson.description || "Confira essa oferta!",
         price: extractedJson.price || "",
         oldPrice: extractedJson.oldPrice || "",
         imageUrl: extractedJson.imageUrl || "",
@@ -191,9 +190,6 @@ REGRA CRÍTICA DE JSON:
     }
   } catch (e) {
     console.error("Erro ao fazer parse manual do JSON da IA:", e);
-    // Como fallback final, se a IA falhar totalmente no JSON, tentamos preencher com os dados brutos da Shopee
-    parsed.productName = input.pageTitle || "";
-    parsed.price = "Extração automática falhou. Tente novamente.";
   }
 
   return parsed;
