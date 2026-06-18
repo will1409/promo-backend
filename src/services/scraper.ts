@@ -33,7 +33,10 @@ export async function fetchShopeeOfficialApi(keyword: string): Promise<{ title: 
   if (!appId || !appSecret || !keyword) return null;
 
   try {
-    const cleanKeyword = keyword.replace(/"/g, '').trim();
+    let cleanKeyword = keyword.replace(/"/g, '').trim();
+    // Remove "..." at the end which Telegram adds to long previews
+    cleanKeyword = cleanKeyword.replace(/\.\.\.$/, '').trim();
+    
     if (!cleanKeyword) return null;
 
     const query = `query { productOfferV2(keyword: "${cleanKeyword}", listType: 0, sortType: 1, limit: 1) { nodes { productName price imageUrl } } }`;
@@ -91,24 +94,32 @@ export async function resolveShopeeViaTelegram(shortLink: string): Promise<{ tit
     const sendData = (await sendRes.json()) as any;
     if (sendData.ok) {
       const messageId = sendData.result.message_id;
-      // Espera 6 segundos pro Telegram carregar o preview internamente
-      await new Promise(r => setTimeout(r, 6000));
+      // Espera inicial de 4 segundos pro Telegram gerar o preview
+      await new Promise(r => setTimeout(r, 4000));
 
       const channelName = channelId.replace('@', '');
       const publicUrl = `https://t.me/s/${channelName}/${messageId}`;
-      
-      // Usa ZenRows para puxar o t.me sem ser bloqueado
       const proxyUrl = `https://api.zenrows.com/v1/?apikey=${zenRowsKey}&url=${encodeURIComponent(publicUrl)}&antibot=true`;
-      const pageRes = await fetch(proxyUrl);
-      const html = await pageRes.text();
-      const $ = cheerio.load(html);
 
-      const title = $('.link_preview_title').text() || '';
+      let title = '';
       let imageUrl = '';
-      const bgImage = $('.link_preview_image').css('background-image');
-      if (bgImage) {
-        const match = bgImage.match(/url\(['"]?(.*?)['"]?\)/);
-        if (match && match[1]) { imageUrl = match[1]; }
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const pageRes = await fetch(proxyUrl);
+        const html = await pageRes.text();
+        const $ = cheerio.load(html);
+
+        title = $('.link_preview_title').text() || '';
+        const bgImage = $('.link_preview_image').css('background-image');
+        if (bgImage) {
+          const match = bgImage.match(/url\(['"]?(.*?)['"]?\)/);
+          if (match && match[1]) { imageUrl = match[1]; }
+        }
+
+        if (title || imageUrl) break; // Sucesso, sai do loop
+        
+        // Se falhou, espera mais 4 segundos e tenta de novo
+        if (attempt === 0) await new Promise(r => setTimeout(r, 4000));
       }
 
       // Cleanup invisível
