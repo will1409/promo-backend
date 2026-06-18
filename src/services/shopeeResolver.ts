@@ -1,13 +1,64 @@
 import * as cheerio from 'cheerio';
+import crypto from 'crypto';
+import fetch from 'node-fetch';
+
+/**
+ * Tenta buscar os dados originais usando a Chave Global da Shopee.
+ * Se as variáveis de ambiente não estiverem configuradas ou a assinatura falhar, retorna null.
+ */
+async function fetchFromOfficialShopeeApi(offerLink: string): Promise<{ title?: string, imageUrl?: string, price?: string } | null> {
+  const appId = process.env.GLOBAL_SHOPEE_APP_ID;
+  const appSecret = process.env.GLOBAL_SHOPEE_APP_SECRET;
+  if (!appId || !appSecret) return null;
+
+  try {
+    const payloadObj = { "query": `{ productOfferV2(offerLink: "${offerLink}") { nodes { offerName price imageList } } }` };
+    const payload = JSON.stringify(payloadObj);
+    const timestamp = Math.floor(Date.now() / 1000);
+    const factor = appId + timestamp + payload + appSecret;
+    const signature = crypto.createHmac('sha256', appSecret).update(factor, 'utf8').digest('hex');
+
+    const res = await fetch('https://open-api.affiliate.shopee.com.br/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `SHA256 Credential=${appId},Timestamp=${timestamp},Signature=${signature}`
+      },
+      body: payload
+    });
+
+    const data: any = await res.json();
+    if (data && data.data && data.data.productOfferV2 && data.data.productOfferV2.nodes && data.data.productOfferV2.nodes.length > 0) {
+      const node = data.data.productOfferV2.nodes[0];
+      return {
+        title: node.offerName,
+        price: node.price ? String(node.price) : undefined,
+        imageUrl: node.imageList ? node.imageList[0] : undefined
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("Erro na API Oficial da Shopee (Fallback para Telegram ativado):", error);
+    return null;
+  }
+}
 
 export async function resolveShopeeShortlink(shortLink: string) {
-  // A ponte do Telegram funciona assim:
-  // 1. Enviamos o link para um canal público via API do Bot
-  // 2. O Telegram gera o preview
-  // 3. Raspamos a página pública do canal (HTML) para pegar o preview
-  
+  // TENTA A API OFICIAL PRIMEIRO
+  const officialData = await fetchFromOfficialShopeeApi(shortLink);
+  if (officialData) {
+    return { 
+      finalUrl: shortLink, 
+      pageTitle: officialData.title, 
+      imageUrl: officialData.imageUrl,
+      price: officialData.price,
+      htmlContent: `<html><body><h1>${officialData.title}</h1><div>Preço Original: R$ ${officialData.price}</div></body></html>` 
+    };
+  }
+
+  // FALLBACK: A ponte do Telegram
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const channelId = process.env.TELEGRAM_CHANNEL_ID; // Ex: @meu_canal_publico
+  const channelId = process.env.TELEGRAM_CHANNEL_ID;
 
   if (!botToken || !channelId) {
     console.warn('Telegram Bridge não configurada. Faltam chaves.');
