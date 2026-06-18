@@ -40,12 +40,14 @@ app.get('/api/health', (_req, res) => {
   }
 
   const geminiKey = process.env.GEMINI_API_KEY;
+  const groqKey = process.env.GROQ_API_KEY;
 
   res.json({ 
     status: 'ok', 
     message: 'Pegue a Promo AI API running ✅',
     firebaseServiceAccount: saStatus,
-    geminiKeyProvided: !!geminiKey
+    geminiKeyProvided: !!geminiKey,
+    groqKeyProvided: !!groqKey
   });
 });
 
