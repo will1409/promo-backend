@@ -1,31 +1,42 @@
 import crypto from 'crypto';
 import fetch from 'node-fetch';
-import * as cheerio from 'cheerio';
+import { chromium } from 'playwright-extra';
+import stealth from 'puppeteer-extra-plugin-stealth';
+
+// Configura o Playwright para usar o plugin stealth (mesmo plugin funciona no playwright-extra)
+chromium.use(stealth());
 
 /**
- * Tenta expandir o link usando fetch redirect.
+ * 1. Usa o Playwright para abrir o link curto, aguardar o redirecionamento
+ * e extrair a URL final (longa).
  */
-export async function expandShortlink(url: string): Promise<string> {
-  let finalUrl = url;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const res = await fetch(finalUrl, { 
-        redirect: 'manual',
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-      });
-      if (res.status >= 300 && res.status < 400) {
-        const loc = res.headers.get('location');
-        if (loc && !loc.includes('error_page')) {
-          finalUrl = loc.startsWith('http') ? loc : new URL(loc, finalUrl).toString();
-        } else break;
-      } else break;
-    } catch (e) { break; }
+export async function resolveRedirectPuppeteer(shortLink: string): Promise<string> {
+  let browser;
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'],
+    });
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+    });
+    const page = await context.newPage();
+    
+    await page.goto(shortLink, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    
+    // Pega a URL final após todos os redirecionamentos JS
+    const finalUrl = page.url();
+    return finalUrl;
+  } catch (e) {
+    console.error("Erro no Playwright ao resolver redirect:", e);
+    return shortLink; // Retorna o original se falhar
+  } finally {
+    if (browser) await browser.close();
   }
-  return finalUrl;
 }
 
 /**
- * Faz uma chamada direta à API Oficial de Afiliados da Shopee.
+ * 2. Faz uma chamada direta à API Oficial de Afiliados da Shopee.
  */
 export async function fetchShopeeOfficialApi(keyword: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
   const appId = process.env.GLOBAL_SHOPEE_APP_ID || '18396940613';
@@ -34,9 +45,7 @@ export async function fetchShopeeOfficialApi(keyword: string): Promise<{ title: 
 
   try {
     let cleanKeyword = keyword.replace(/"/g, '').trim();
-    // Remove "..." at the end which Telegram adds to long previews
     cleanKeyword = cleanKeyword.replace(/\.\.\.$/, '').trim();
-    
     if (!cleanKeyword) return null;
 
     const query = `query { productOfferV2(keyword: "${cleanKeyword}", listType: 0, sortType: 1, limit: 1) { nodes { productName price imageUrl } } }`;
@@ -72,69 +81,70 @@ export async function fetchShopeeOfficialApi(keyword: string): Promise<{ title: 
 }
 
 /**
- * Ponte secreta via Telegram + ZenRows
- * Envia o link para um canal do Telegram, aguarda o Telegram gerar o preview,
- * e então raspa o HTML web do canal usando ZenRows para evitar bloqueio do Cloudflare do Render.
+ * 3. Fallback de Segurança: Usa o Playwright para raspar a página final.
  */
-export async function resolveShopeeViaTelegram(shortLink: string): Promise<{ title: string, imageUrl: string } | null> {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN || '8939917793:AAFk9XdOF74IVwepff7M0dQutCMZvkf-BKo';
-  const channelId = '@meubotlinkou';
-  const zenRowsKey = process.env.ZENROWS_API_KEY || '159326979daa756382284d9789d23f5557a9a421';
-
-  if (!botToken || !zenRowsKey) return null;
-
+export async function scrapeProductPuppeteer(longUrl: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
+  let browser;
   try {
-    const sendUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    const sendRes = await fetch(sendUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: channelId, text: shortLink })
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'],
     });
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+    });
+    const page = await context.newPage();
     
-    const sendData = (await sendRes.json()) as any;
-    if (sendData.ok) {
-      const messageId = sendData.result.message_id;
-      // Espera inicial de 4 segundos pro Telegram gerar o preview
-      await new Promise(r => setTimeout(r, 4000));
+    await page.goto(longUrl, { waitUntil: 'domcontentloaded', timeout: 35000 });
 
-      const channelName = channelId.replace('@', '');
-      const publicUrl = `https://t.me/s/${channelName}/${messageId}`;
-      const proxyUrl = `https://api.zenrows.com/v1/?apikey=${zenRowsKey}&url=${encodeURIComponent(publicUrl)}&antibot=true`;
+    // Espera elementos base carregarem (ignorando timeout se não achar h1 rápido)
+    await page.waitForSelector('h1', { timeout: 10000 }).catch(() => {});
 
-      let title = '';
-      let imageUrl = '';
+    // Avalia o DOM para extrair dados
+    const productData = await page.evaluate(() => {
+      // Pega título
+      const titleEl = document.querySelector('h1');
+      let title = titleEl ? (titleEl as HTMLElement).innerText : '';
 
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const pageRes = await fetch(proxyUrl);
-        const html = await pageRes.text();
-        const $ = cheerio.load(html);
-
-        title = $('.link_preview_title').text() || '';
-        const bgImage = $('.link_preview_image').css('background-image');
-        if (bgImage) {
-          const match = bgImage.match(/url\(['"]?(.*?)['"]?\)/);
-          if (match && match[1]) { imageUrl = match[1]; }
+      // Tenta pegar o preço
+      let price = '';
+      const priceSelectors = [
+        'div.pqnscR', '.pqnscR', '.PMuAq5', '.pZkvcx', '.G27FPf', '[class*="price"]'
+      ];
+      for (const sel of priceSelectors) {
+        const el = document.querySelector(sel);
+        if (el && el.textContent && el.textContent.includes('R$')) {
+          price = el.textContent.trim();
+          break;
         }
-
-        if (title || imageUrl) break; // Sucesso, sai do loop
-        
-        // Se falhou, espera mais 4 segundos e tenta de novo
-        if (attempt === 0) await new Promise(r => setTimeout(r, 4000));
       }
 
-      // Cleanup invisível
-      fetch(`https://api.telegram.org/bot${botToken}/deleteMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: channelId, message_id: messageId })
-      }).catch(() => {});
-
-      if (title || imageUrl) {
-        return { title, imageUrl };
+      // Pega a imagem principal
+      let imageUrl = '';
+      const imgSelectors = [
+        'picture img', '.ZkIrt\\+', '.product-image img', 'img[src*="cf.shopee.com.br"]'
+      ];
+      for (const sel of imgSelectors) {
+        const el = document.querySelector(sel);
+        if (el && (el as HTMLImageElement).src) {
+          imageUrl = (el as HTMLImageElement).src;
+          break;
+        }
       }
+
+      return { title, price, imageUrl };
+    });
+
+    if (productData.title || productData.price) {
+      return productData;
     }
+    
+    return null;
   } catch (e) {
-    console.error("Erro no Telegram Bridge via ZenRows:", e);
+    console.error("Erro no Playwright Scrape:", e);
+    return null;
+  } finally {
+    if (browser) await browser.close();
   }
-  return null;
 }

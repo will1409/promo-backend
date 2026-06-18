@@ -1,138 +1,23 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import * as cheerio from 'cheerio';
 import { generateCreativeFlow } from '../genkit';
 import { db } from '../config/firebase';
+import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer } from '../services/scraper';
 
 const router = Router();
 
-function extractDataFromHtml(html: string, finalUrl: string, title?: string) {
-  const $ = cheerio.load(html);
-  
-  let imageUrl = $('meta[property="og:image"]').attr('content') || 
-                 $('meta[name="og:image"]').attr('content') ||
-                 $('#landingImage').attr('src');
-                 
-  let pageTitle = title || $('title').text() || $('meta[property="og:title"]').attr('content') || '';
-  
-  let description = $('meta[name="description"]').attr('content') || $('.link_preview_description').text() || '';
-  
-  const htmlContent = html.substring(0, 6000);
-
-  return { imageUrl, pageTitle, description, htmlContent, finalUrl };
-}
-
-export async function fetchPageData(url: string, integrations: any = {}): Promise<{ imageUrl?: string, pageTitle?: string, description?: string, htmlContent?: string, finalUrl: string, price?: string }> {
+function extractKeywordFromUrl(url: string): string {
   try {
-    let finalUrl = url;
-    let html = '';
-
-    // 1. Resolver Shopee usando extração de keyword e API oficial
-    if (url.includes('shopee') || url.includes('shope.ee') || url.includes('shp.ee')) {
-      const urlObj = new URL(url);
-      let keyword = '';
-      if (urlObj.hostname.includes('shopee.com.br')) {
-        const pathParts = urlObj.pathname.split('/');
-        const slug = pathParts.find(p => p.includes('-i.'));
-        if (slug) keyword = decodeURIComponent(slug.split('-i.')[0].replace(/-/g, ' '));
-      }
-      
-      if (!keyword && !url.startsWith('http')) {
-        keyword = url;
-      }
-
-      if (keyword) {
-        const { fetchShopeeOfficialApi } = require('../services/scraper');
-        const officialData = await fetchShopeeOfficialApi(keyword);
-        if (officialData && officialData.price) {
-          return { 
-            finalUrl: url, 
-            pageTitle: officialData.title, 
-            htmlContent: '', 
-            price: officialData.price, 
-            imageUrl: officialData.imageUrl 
-          };
-        }
-      }
-      // Se for link curto ou falhou, deixa passar para frente ou retornar vazio
-    }
-
-    // 2. Resolve redirect manually to get the final URL first (solves amzn.to, etc)
-    for (let i = 0; i < 3; i++) {
-      try {
-        const res = await fetch(finalUrl, { 
-          redirect: 'manual',
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
-        });
-        if (res.status >= 300 && res.status < 400) {
-          const loc = res.headers.get('location');
-          // Evitar cair no bloqueio da shopee que redireciona para error_page
-          if (loc && !loc.includes('error_page')) {
-            finalUrl = loc.startsWith('http') ? loc : new URL(loc, finalUrl).toString();
-          } else break;
-        } else break;
-      } catch (e) { break; }
-    }
-
-    if (process.env.ZENROWS_API_KEY) {
-      // Usando ZenRows para burlar bloqueios e renderizar a página
-      const fetchUrl = `https://api.zenrows.com/v1/?apikey=${process.env.ZENROWS_API_KEY}&url=${encodeURIComponent(finalUrl)}&js_render=true&antibot=true&wait=5000&premium_proxy=true`;
-      const response = await fetch(fetchUrl);
-      if (response.ok) {
-        html = await response.text();
-      } else {
-        console.error('Erro no ZenRows:', response.status, await response.text());
-        return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl };
-      }
-    } else if (integrations.scraperApiKey) {
-      // Usa o proxy do ScraperAPI para burlar o bloqueio
-      const fetchUrl = `http://api.scraperapi.com?api_key=${integrations.scraperApiKey}&url=${encodeURIComponent(finalUrl)}&render=true`;
-      const response = await fetch(fetchUrl);
-      if (response.ok) {
-        html = await response.text();
-      } else {
-        return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl };
-      }
-    } else {
-      // 2. Fetch HTML from final URL diretamente (sem proxy)
-      const response = await fetch(finalUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-        }
-      });
-      
-      if (response.ok) {
-        html = await response.text();
-      } else {
-        return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl };
+    const urlObj = new URL(url);
+    if (urlObj.hostname.includes('shopee')) {
+      const pathParts = urlObj.pathname.split('/');
+      const slug = pathParts.find(p => p.includes('-i.'));
+      if (slug) {
+        return decodeURIComponent(slug.split('-i.')[0].replace(/-/g, ' '));
       }
     }
-    
-    // Extract Image
-    let imageUrl;
-    const ogMatch = html.match(/<meta[^>]*?(?:property|name)=["']og:image["'][^>]*?content=["'](.*?)["']/i) || 
-                    html.match(/<meta[^>]*?content=["'](.*?)["'][^>]*?(?:property|name)=["']og:image["']/i);
-    if (ogMatch && ogMatch[1]) imageUrl = ogMatch[1];
-    else {
-      const amzMatch = html.match(/id="landingImage"[^>]*src=["'](.*?)["']/i);
-      if (amzMatch && amzMatch[1]) imageUrl = amzMatch[1];
-    }
-
-    // Extract Title
-    let pageTitle;
-    const titleMatch = html.match(/<title[^>]*>(.*?)<\/title>/i);
-    if (titleMatch && titleMatch[1]) pageTitle = titleMatch[1];
-
-    // Get a chunk of HTML (first 6000 chars) to pass to Gemini/Groq
-    const htmlContent = html.substring(0, 6000);
-
-    return { imageUrl, pageTitle, htmlContent, finalUrl };
-  } catch (error) {
-    console.error('Fetch page error:', error);
-    return { imageUrl: undefined, pageTitle: undefined, htmlContent: undefined, finalUrl: url };
-  }
+  } catch (e) {}
+  return "";
 }
 
 // POST /api/creatives/generate-from-link
@@ -140,52 +25,109 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
   try {
     const { linkUrl, userId } = req.body;
     if (!linkUrl) {
-      return res.status(400).json({ error: 'linkUrl é obrigatório.' });
+      return res.status(400).json({ error: 'URL é obrigatória.' });
     }
 
-    // Carregar integrações do usuário
-    let integrations: any = {};
-    if (userId) {
+    let finalUrl = linkUrl;
+    let keyword = extractKeywordFromUrl(finalUrl);
+
+    // 1. Resolução do Redirecionamento via Playwright (Bypass de links curtos)
+    if (!keyword && (linkUrl.includes('s.shopee') || linkUrl.includes('shope.ee') || linkUrl.includes('shp.ee'))) {
+      finalUrl = await resolveRedirectPuppeteer(linkUrl);
+      keyword = extractKeywordFromUrl(finalUrl);
+    }
+    
+    // Fallback: Se for só texto ou busca, a keyword é o próprio texto.
+    if (!keyword && !finalUrl.startsWith('http')) {
+      keyword = finalUrl;
+    }
+
+    // --- CAMADA 1: CACHE NO FIREBASE ---
+    const cacheKey = keyword ? keyword.replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 100) : null;
+    if (cacheKey) {
       try {
-        const docSnap = await db.doc(`users/${userId}/settings/integrations`).get();
-        if (docSnap.exists) {
-          integrations = docSnap.data() || {};
+        const cacheDoc = await db.collection('productsCache').doc(cacheKey).get();
+        if (cacheDoc.exists) {
+          const cachedData = cacheDoc.data();
+          // Verifica se o cache é de hoje (menos de 24h)
+          const cacheAgeHours = (Date.now() - (cachedData?.timestamp || 0)) / (1000 * 60 * 60);
+          if (cacheAgeHours < 24) {
+            console.log('📦 Retornado do Cache do Firebase:', cacheKey);
+            return res.json({ 
+              success: true, 
+              data: { 
+                productName: cachedData?.productName, 
+                description: "Oferta Especial Shopee!", 
+                price: cachedData?.price, 
+                oldPrice: "", 
+                imageUrl: cachedData?.imageUrl,
+                finalUrl: finalUrl
+              } 
+            });
+          }
         }
       } catch (err) {
-        console.error('Erro ao buscar integracoes:', err);
+        console.error('Erro ao ler cache do Firebase:', err);
       }
     }
 
-    const hasShopee = !!(integrations.shopeeAppId && integrations.shopeeAppSecret);
-    const hasMeli = !!(integrations.mercadoLivreAppId && integrations.mercadoLivreClientSecret);
-    const hasAmazon = !!(integrations.amazonAccessKey && integrations.amazonSecretKey);
-    const hasScraper = !!integrations.scraperApiKey;
-    const hasZenRows = !!process.env.ZENROWS_API_KEY;
+    let productTitle = keyword || 'Oferta Especial';
+    let productPrice = '';
+    let productImageUrl = '';
 
-    // Retirada a obrigatoriedade de ter uma API configurada para extração manual (Automação Expressa)
+    // --- CAMADA 2: API OFICIAL DA SHOPEE ---
+    if (keyword) {
+      const officialData = await fetchShopeeOfficialApi(keyword);
+      if (officialData) {
+        productTitle = officialData.title || productTitle;
+        productPrice = officialData.price || productPrice;
+        productImageUrl = officialData.imageUrl || productImageUrl;
+      }
+    }
 
-    let { imageUrl, pageTitle, description, htmlContent, finalUrl, price } = await fetchPageData(linkUrl, integrations);
-    
-    // BYPASS IA: Se a extração oficial da Shopee funcionou perfeitamente e trouxe o preço,
-    // devolvemos a cópia idêntica instantaneamente, sem passar pela Groq (evita erros JSON e alucinações da IA).
-    if (price && price.trim() !== '') {
-      return res.json({ 
-        success: true, 
-        data: { 
-          productName: pageTitle || "", 
-          description: description || "", 
-          price: price, 
-          oldPrice: "", 
-          imageUrl: imageUrl || ""
-        } 
+    // --- CAMADA 3: PLAYWRIGHT FALLBACK ---
+    if (!productPrice || !productImageUrl) {
+      const scrapedData = await scrapeProductPuppeteer(finalUrl);
+      if (scrapedData) {
+        productTitle = scrapedData.title || productTitle;
+        productPrice = scrapedData.price || productPrice;
+        productImageUrl = scrapedData.imageUrl || productImageUrl;
+      }
+    }
+
+    // Se falhou em tudo, retorna erro
+    if (!productPrice && !productImageUrl) {
+      return res.status(400).json({ 
+        error: 'Link protegido pela Shopee. Por favor, cole o nome do produto no link ou digite o valor e suba a foto manualmente.' 
       });
     }
-    
-    // Se não tiver preço oficial (ex: Amazon ou erro na Shopee), cai no fallback da IA
-    const generated = await generateCreativeFlow({ linkUrl, finalUrl, pageTitle, htmlContent });
-    const finalImageUrl = generated.imageUrl || imageUrl;
-    
-    return res.json({ success: true, data: { ...generated, imageUrl: finalImageUrl } });
+
+    // --- CAMADA 4: SALVAR NO CACHE ---
+    if (cacheKey && productPrice && productImageUrl) {
+      try {
+        await db.collection('productsCache').doc(cacheKey).set({
+          productName: productTitle,
+          price: productPrice,
+          imageUrl: productImageUrl,
+          timestamp: Date.now()
+        });
+      } catch (err) {
+        console.error('Erro ao salvar no cache do Firebase:', err);
+      }
+    }
+
+    // Retorno de sucesso (direto pra tela)
+    return res.json({ 
+      success: true, 
+      data: { 
+        productName: productTitle, 
+        description: "Oferta Especial Shopee!", 
+        price: productPrice, 
+        oldPrice: "", 
+        imageUrl: productImageUrl,
+        finalUrl: finalUrl
+      } 
+    });
   } catch (error: any) {
     console.error('[/api/creatives/generate-from-link]', error);
     return res.status(500).json({ error: `Erro ao gerar dados do criativo: ${error.message || String(error)}` });
