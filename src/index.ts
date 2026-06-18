@@ -55,6 +55,27 @@ app.get('/api/health', async (_req, res) => {
     groqConnectivity = `Error: ${err.message || err}`;
   }
 
+  let groqChatTest = 'Not tested';
+  try {
+    const chatRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqKey || ''}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: 'Say hello in one word.' }],
+        temperature: 0.7,
+        max_tokens: 10
+      })
+    });
+    const text = await chatRes.text();
+    groqChatTest = `Status: ${chatRes.status} ${chatRes.statusText}, Body: ${text.substring(0, 300)}`;
+  } catch (err: any) {
+    groqChatTest = `Error: ${err.message || err}`;
+  }
+
   res.json({ 
     status: 'ok', 
     message: 'Pegue a Promo AI API running ✅',
@@ -62,7 +83,8 @@ app.get('/api/health', async (_req, res) => {
     firebaseServiceAccount: saStatus,
     geminiKeyProvided: !!geminiKey,
     groqKeyProvided: !!groqKey,
-    groqConnectivity
+    groqConnectivity,
+    groqChatTest
   });
 });
 
