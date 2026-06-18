@@ -47,8 +47,8 @@ async function fetchFromOfficialShopeeApi(keyword: string): Promise<{ title?: st
 
 export async function resolveShopeeShortlink(shortLink: string) {
   // 1. Tenta pegar o Título básico usando a Ponte do Telegram (Fallback super rápido)
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const channelId = process.env.TELEGRAM_CHANNEL_ID;
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || '8939917793:AAFk9XdOF74IVwepff7M0dQutCMZvkf-BKo';
+  const channelId = process.env.TELEGRAM_CHANNEL_ID || '@meubotlinkou';
 
   let finalUrl = shortLink;
   let pageTitle = '';
