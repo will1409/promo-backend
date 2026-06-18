@@ -1,13 +1,13 @@
 import { genkit, z } from 'genkit';
-import { groq } from 'genkitx-groq';
+import { googleAI } from '@genkit-ai/googleai';
 import { db } from './config/firebase';
 
-// Inicializa o Genkit configurado com o plugin Groq
+// Inicializa o Genkit configurado com o plugin Google AI (Gemini)
 const ai = genkit({
   plugins: [
-    groq({ apiKey: process.env.GROQ_API_KEY })
+    googleAI({ apiKey: process.env.GEMINI_API_KEY })
   ],
-  model: 'groq/llama-3.1-8b-instant' // Default model
+  model: 'googleai/gemini-2.0-flash' // Default model
 });
 
 export const OfferInputSchema = z.object({
@@ -62,9 +62,9 @@ Crie:
 
 Responda usando a estrutura fornecida.`;
 
-  // Chama o modelo Gemini via Genkit
+  // Chama o modelo Gemini 2.0 Flash via Genkit
   const response = await ai.generate({
-    model: 'groq/llama-3.1-8b-instant',
+    model: 'googleai/gemini-2.0-flash',
     prompt: prompt,
     output: { schema: OfferOutputSchema },
     config: {
@@ -115,7 +115,7 @@ export const chatFlow = ai.defineFlow({
   promptText += `Assistente: `;
 
   const response = await ai.generate({
-    model: 'groq/llama-3.1-8b-instant',
+    model: 'googleai/gemini-2.0-flash',
     prompt: promptText,
     config: { temperature: 0.7 }
   });
@@ -168,7 +168,7 @@ REGRA CRÍTICA:
 - Se não houver informação, use uma string vazia "".`;
 
   const response = await ai.generate({
-    model: 'groq/llama-3.1-8b-instant',
+    model: 'googleai/gemini-2.0-flash',
     prompt: prompt,
     config: { temperature: 0.1 }
   });
