@@ -171,10 +171,30 @@ REGRA CRÍTICA DE JSON:
   const response = await ai.generate({
     model: 'groq/llama-3.1-8b-instant',
     prompt: prompt,
-    output: { schema: CreativeOutputSchema },
     config: { temperature: 0.1 }
   });
 
-  if (!response.output) throw new Error('Falha ao gerar dados do criativo.');
-  return response.output;
+  const text = response.text();
+  let parsed = { productName: "", description: "", price: "", oldPrice: "", imageUrl: "" };
+  
+  try {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) {
+      const extractedJson = JSON.parse(match[0]);
+      parsed = {
+        productName: extractedJson.productName || "",
+        description: extractedJson.description || "",
+        price: extractedJson.price || "",
+        oldPrice: extractedJson.oldPrice || "",
+        imageUrl: extractedJson.imageUrl || "",
+      };
+    }
+  } catch (e) {
+    console.error("Erro ao fazer parse manual do JSON da IA:", e);
+    // Como fallback final, se a IA falhar totalmente no JSON, tentamos preencher com os dados brutos da Shopee
+    parsed.productName = input.pageTitle || "";
+    parsed.price = "Extração automática falhou. Tente novamente.";
+  }
+
+  return parsed;
 });
