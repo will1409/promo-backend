@@ -151,17 +151,22 @@ ${input.pageTitle ? `Título: ${input.pageTitle}` : ''}
 ${input.htmlContent ? `Conteúdo HTML:\n${input.htmlContent}` : ''}
 
 Sua missão é extrair CÓPIAS IDÊNTICAS das informações originais, sem alterar nada.
-1. "productName": O nome exato do produto.
-2. "description": A descrição exata do produto. Se não houver, use "".
-3. "price": O valor exato do produto (apenas números e vírgulas). Se não encontrar, use "".
-4. "oldPrice": O valor antigo/riscado. Se não houver, use "".
-5. "imageUrl": A URL exata da imagem do produto.
+Você DEVE retornar APENAS um objeto JSON exatamente com a estrutura abaixo, preenchendo os valores:
+
+{
+  "productName": "nome exato do produto",
+  "description": "descrição exata do produto ou string vazia",
+  "price": "valor exato do produto (apenas números e vírgulas) ou string vazia",
+  "oldPrice": "valor antigo/riscado ou string vazia",
+  "imageUrl": "URL exata da imagem do produto ou string vazia"
+}
 
 REGRA CRÍTICA DE JSON:
-- Você DEVE retornar todas as 5 chaves.
+- NÃO adicione numeração (1, 2, 3).
+- NÃO adicione crases de markdown (\`\`\`json).
 - O valor de TODAS as chaves deve ser do tipo STRING.
 - Se não houver informação, use uma string vazia "".
-- Retorne apenas o JSON, sem nenhum texto adicional.`;
+- Retorne apenas as chaves e os valores dentro de um único bloco {}.`;
 
   const response = await ai.generate({
     model: 'groq/llama-3.1-8b-instant',
