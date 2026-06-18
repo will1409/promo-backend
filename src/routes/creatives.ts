@@ -32,7 +32,13 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
     let keyword = extractKeywordFromUrl(finalUrl);
 
     // 1. Resolução do Redirecionamento via Playwright (Bypass de links curtos)
-    if (!keyword && (linkUrl.includes('s.shopee') || linkUrl.includes('shope.ee') || linkUrl.includes('shp.ee'))) {
+    if (!keyword && (
+      linkUrl.includes('s.shopee') ||
+      linkUrl.includes('shope.ee') ||
+      linkUrl.includes('shp.ee') ||
+      linkUrl.includes('shopee.com.br') ||
+      linkUrl.includes('shopee.com')
+    )) {
       finalUrl = await resolveRedirectPuppeteer(linkUrl);
       keyword = extractKeywordFromUrl(finalUrl);
     }
@@ -95,11 +101,10 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
       }
     }
 
-    // Se falhou em tudo, retorna erro
+    // Se não encontrou preço/imagem, continua mesmo assim com o que temos
+    // O frontend vai mostrar os campos em branco para o usuário preencher manualmente
     if (!productPrice && !productImageUrl) {
-      return res.status(400).json({ 
-        error: 'Link protegido pela Shopee. Por favor, cole o nome do produto no link ou digite o valor e suba a foto manualmente.' 
-      });
+      console.log('[creatives] Não foi possível extrair preço/imagem. Retornando dados parciais.');
     }
 
     // --- CAMADA 4: SALVAR NO CACHE ---
