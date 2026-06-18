@@ -1,14 +1,8 @@
 import { genkit, z } from 'genkit';
-import { groq } from 'genkitx-groq';
 import { db } from './config/firebase';
 
-// Inicializa o Genkit configurado com o plugin Groq
-const ai = genkit({
-  plugins: [
-    groq({ apiKey: process.env.GROQ_API_KEY })
-  ],
-  model: 'groq/llama-3.3-70b-versatile' // Default model
-});
+// Inicializa o Genkit de forma limpa, sem carregar plugins de rede de terceiros
+const ai = genkit({});
 
 export const OfferInputSchema = z.object({
   productName: z.string(),
@@ -62,18 +56,48 @@ Crie:
 
 Responda usando a estrutura fornecida.`;
 
-  // Chama o modelo Gemma 2 via Genkit
-  const response = await ai.generate({
-    model: 'groq/llama-3.3-70b-versatile',
-    prompt: prompt,
-    output: { schema: OfferOutputSchema },
-    config: {
-      temperature: 0.8,
-    }
+  const groqKey = process.env.GROQ_API_KEY;
+  const chatRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${groqKey || ''}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'Você é um assistente de marketing que sempre responde estritamente com um objeto JSON válido correspondendo ao esquema solicitado.' },
+        { role: 'user', content: prompt + '\nRetorne no formato JSON com as seguintes chaves: title (string), description (string), whatsapp (string), telegram (string), instagram (string).' }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.8
+    })
   });
 
-  const generatedData = response.output;
-  if (!generatedData) throw new Error('Falha ao gerar oferta com Genkit.');
+  if (!chatRes.ok) {
+    const errText = await chatRes.text();
+    throw new Error(`Erro na API do Groq: Status ${chatRes.status} - ${errText}`);
+  }
+
+  const responseJson = await chatRes.json();
+  const content = responseJson.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Falha ao gerar oferta com Groq (resposta vazia).');
+
+  let generatedData: any = {};
+  try {
+    generatedData = JSON.parse(content);
+  } catch (e) {
+    console.error('Erro ao fazer parse do JSON da IA:', e);
+    throw new Error('Resposta da IA inválida ou mal formatada.');
+  }
+
+  const outputData = {
+    title: generatedData.title || input.productName || "",
+    description: generatedData.description || "",
+    whatsapp: generatedData.whatsapp || "",
+    telegram: generatedData.telegram || "",
+    instagram: generatedData.instagram || "",
+  };
 
   // Salva no banco de dados se houver userId
   if (input.userId && db) {
@@ -81,7 +105,7 @@ Responda usando a estrutura fornecida.`;
       await db.collection('offers').add({
         userId: input.userId,
         ...input,
-        ...generatedData,
+        ...outputData,
         clicks: 0,
         createdAt: new Date().toISOString(),
       });
@@ -90,7 +114,7 @@ Responda usando a estrutura fornecida.`;
     }
   }
 
-  return generatedData;
+  return outputData;
 });
 
 // Tipagem para mensagens de chat
@@ -114,13 +138,30 @@ export const chatFlow = ai.defineFlow({
 
   promptText += `Assistente: `;
 
-  const response = await ai.generate({
-    model: 'groq/llama-3.3-70b-versatile',
-    prompt: promptText,
-    config: { temperature: 0.7 }
+  const groqKey = process.env.GROQ_API_KEY;
+  const chatRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${groqKey || ''}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'user', content: promptText }
+      ],
+      temperature: 0.7
+    })
   });
 
-  return response.text;
+  if (!chatRes.ok) {
+    const errText = await chatRes.text();
+    throw new Error(`Erro na API do Groq: Status ${chatRes.status} - ${errText}`);
+  }
+
+  const responseJson = await chatRes.json();
+  const text = responseJson.choices?.[0]?.message?.content || '';
+  return text;
 });
 
 export const CreativeInputSchema = z.object({
@@ -167,13 +208,31 @@ REGRA CRÍTICA:
 - O valor de TODAS as chaves deve ser STRING.
 - Se não houver informação, use uma string vazia "".`;
 
-  const response = await ai.generate({
-    model: 'groq/llama-3.3-70b-versatile',
-    prompt: prompt,
-    config: { temperature: 0.1 }
+  const groqKey = process.env.GROQ_API_KEY;
+  const chatRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${groqKey || ''}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'user', content: prompt }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1
+    })
   });
 
-  const text = response.text;
+  if (!chatRes.ok) {
+    const errText = await chatRes.text();
+    throw new Error(`Erro na API do Groq: Status ${chatRes.status} - ${errText}`);
+  }
+
+  const responseJson = await chatRes.json();
+  const text = responseJson.choices?.[0]?.message?.content || '';
+
   let parsed = { productName: input.pageTitle || "Oferta Especial", description: "Confira essa oferta!", price: "", oldPrice: "", imageUrl: "" };
   
   try {
