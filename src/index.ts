@@ -45,6 +45,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ 
     status: 'ok', 
     message: 'Pegue a Promo AI API running ✅',
+    nodeVersion: process.version,
     firebaseServiceAccount: saStatus,
     geminiKeyProvided: !!geminiKey,
     groqKeyProvided: !!groqKey
