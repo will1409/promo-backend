@@ -131,11 +131,11 @@ export const CreativeInputSchema = z.object({
 });
 
 export const CreativeOutputSchema = z.object({
-  productName: z.string().optional(),
-  description: z.string().optional(),
-  price: z.string().optional(),
-  oldPrice: z.string().optional(),
-  imageUrl: z.string().optional(),
+  productName: z.string(),
+  description: z.string(),
+  price: z.string(),
+  oldPrice: z.string(),
+  imageUrl: z.string(),
 });
 
 // Fluxo para ler link e sugerir dados do criativo
@@ -144,24 +144,24 @@ export const generateCreativeFlow = ai.defineFlow({
   inputSchema: CreativeInputSchema,
   outputSchema: CreativeOutputSchema,
 }, async (input) => {
-  const prompt = `Você é um robô extrator de dados de e-commerce. O usuário colou o seguinte link:
+  const prompt = `Você é um robô extrator de dados. Seu único objetivo é ler os dados abaixo e retornar um JSON estrito.
 URL Original: ${input.linkUrl}
 ${input.finalUrl ? `URL Final: ${input.finalUrl}` : ''}
 ${input.pageTitle ? `Título: ${input.pageTitle}` : ''}
 ${input.htmlContent ? `Conteúdo HTML:\n${input.htmlContent}` : ''}
 
-Sua missão é extrair as informações originais do produto.
-1. Extraia o "productName" exato.
-2. Extraia a "description" resumindo as características principais do produto encontradas no texto.
-3. Extraia o "price" atual do produto. Se não encontrar, deixe como string vazia "".
-4. Extraia o "oldPrice" (preço antigo/riscado) se houver. Se não encontrar, deixe como string vazia "".
-5. Extraia a "imageUrl" procurando por tags <img src="..."> ou og:image.
+Sua missão é extrair CÓPIAS IDÊNTICAS das informações originais, sem alterar nada.
+1. "productName": O nome exato do produto.
+2. "description": A descrição exata do produto. Se não houver, use "".
+3. "price": O valor exato do produto (apenas números e vírgulas). Se não encontrar, use "".
+4. "oldPrice": O valor antigo/riscado. Se não houver, use "".
+5. "imageUrl": A URL exata da imagem do produto.
 
-REGRA CRÍTICA DE FORMATAÇÃO:
-Você deve retornar **EXCLUSIVAMENTE** um objeto JSON válido.
-Nunca use a palavra \`undefined\`. Se um campo não for encontrado, retorne uma string vazia \`""\` ou omita a chave.
-
-Responda no formato JSON solicitado.`;
+REGRA CRÍTICA DE JSON:
+- Você DEVE retornar todas as 5 chaves.
+- O valor de TODAS as chaves deve ser do tipo STRING.
+- Se não houver informação, use uma string vazia "".
+- Retorne apenas o JSON, sem nenhum texto adicional.`;
 
   const response = await ai.generate({
     model: 'groq/llama-3.1-8b-instant',
