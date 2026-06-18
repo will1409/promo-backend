@@ -174,7 +174,7 @@ REGRA CRÍTICA DE JSON:
     config: { temperature: 0.1 }
   });
 
-  const text = response.text();
+  const text = response.text;
   let parsed = { productName: "", description: "", price: "", oldPrice: "", imageUrl: "" };
   
   try {
