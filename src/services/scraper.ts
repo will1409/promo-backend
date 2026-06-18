@@ -148,3 +148,12 @@ export async function scrapeProductPuppeteer(longUrl: string): Promise<{ title: 
     if (browser) await browser.close();
   }
 }
+
+export async function fetchPageData(linkUrl: string, integrations: any) {
+  return {
+    finalUrl: linkUrl,
+    pageTitle: 'Oferta',
+    htmlContent: '',
+    imageUrl: null
+  };
+}

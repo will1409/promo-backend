@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { db } from '../config/firebase';
-import { fetchPageData } from '../routes/creatives';
+import { fetchPageData } from './scraper';
 import { generateCreativeFlow, generateOfferFlow } from '../genkit';
 
 export const startScheduler = () => {
