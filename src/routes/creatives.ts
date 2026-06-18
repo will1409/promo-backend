@@ -16,12 +16,14 @@ function extractDataFromHtml(html: string, finalUrl: string, title?: string) {
                  
   let pageTitle = title || $('title').text() || $('meta[property="og:title"]').attr('content') || '';
   
+  let description = $('meta[name="description"]').attr('content') || $('.link_preview_description').text() || '';
+  
   const htmlContent = html.substring(0, 6000);
 
-  return { imageUrl, pageTitle, htmlContent, finalUrl };
+  return { imageUrl, pageTitle, description, htmlContent, finalUrl };
 }
 
-export async function fetchPageData(url: string, integrations: any = {}) {
+export async function fetchPageData(url: string, integrations: any = {}): Promise<{ imageUrl?: string, pageTitle?: string, description?: string, htmlContent?: string, finalUrl: string, price?: string }> {
   try {
     let finalUrl = url;
     let html = '';
@@ -30,7 +32,8 @@ export async function fetchPageData(url: string, integrations: any = {}) {
     if (url.includes('shopee') || url.includes('shope.ee') || url.includes('shp.ee')) {
       const shopeeData = await resolveShopeeShortlink(url);
       if (shopeeData) {
-        return extractDataFromHtml(shopeeData.htmlContent, shopeeData.finalUrl, shopeeData.pageTitle);
+        const extracted = extractDataFromHtml(shopeeData.htmlContent, shopeeData.finalUrl, shopeeData.pageTitle);
+        return { ...extracted, price: shopeeData.price, imageUrl: shopeeData.imageUrl || extracted.imageUrl };
       }
     }
 
@@ -141,12 +144,25 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
 
     // Retirada a obrigatoriedade de ter uma API configurada para extração manual (Automação Expressa)
 
-    let { imageUrl, pageTitle, htmlContent, finalUrl } = await fetchPageData(linkUrl, integrations);
+    let { imageUrl, pageTitle, description, htmlContent, finalUrl, price } = await fetchPageData(linkUrl, integrations);
     
-    // Se o usuário tiver integração Shopee (ou usar o link encurtado que a Groq não resolve), usamos o motor inteligente (Gemini) só pra extrair o link curto. O resto continua na Groq.
+    // BYPASS IA: Se a extração oficial da Shopee funcionou perfeitamente e trouxe o preço,
+    // devolvemos a cópia idêntica instantaneamente, sem passar pela Groq (evita erros JSON e alucinações da IA).
+    if (price && price.trim() !== '') {
+      return res.json({ 
+        success: true, 
+        data: { 
+          productName: pageTitle || "", 
+          description: description || "", 
+          price: price, 
+          oldPrice: "", 
+          imageUrl: imageUrl || ""
+        } 
+      });
+    }
+    
+    // Se não tiver preço oficial (ex: Amazon ou erro na Shopee), cai no fallback da IA
     const generated = await generateCreativeFlow({ linkUrl, finalUrl, pageTitle, htmlContent });
-    
-    // Prioriza a imagem extraída pela IA se existir e for válida, senão usa a do scrape.
     const finalImageUrl = generated.imageUrl || imageUrl;
     
     return res.json({ success: true, data: { ...generated, imageUrl: finalImageUrl } });
