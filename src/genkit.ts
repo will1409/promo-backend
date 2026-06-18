@@ -153,9 +153,13 @@ ${input.htmlContent ? `Conteúdo HTML:\n${input.htmlContent}` : ''}
 Sua missão é extrair as informações originais do produto.
 1. Extraia o "productName" exato.
 2. Extraia a "description" resumindo as características principais do produto encontradas no texto.
-3. Extraia o "price" atual do produto. Se não encontrar um preço óbvio, procure no HTML ou no texto.
-4. Extraia o "oldPrice" (preço antigo/riscado) se houver.
-5. Extraia a "imageUrl" procurando por tags <img src="..."> ou og:image que mostrem a foto do produto.
+3. Extraia o "price" atual do produto. Se não encontrar, deixe como string vazia "".
+4. Extraia o "oldPrice" (preço antigo/riscado) se houver. Se não encontrar, deixe como string vazia "".
+5. Extraia a "imageUrl" procurando por tags <img src="..."> ou og:image.
+
+REGRA CRÍTICA DE FORMATAÇÃO:
+Você deve retornar **EXCLUSIVAMENTE** um objeto JSON válido.
+Nunca use a palavra \`undefined\`. Se um campo não for encontrado, retorne uma string vazia \`""\` ou omita a chave.
 
 Responda no formato JSON solicitado.`;
 
