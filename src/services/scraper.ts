@@ -4,7 +4,6 @@ import * as cheerio from 'cheerio';
 
 /**
  * Tenta expandir o link usando fetch redirect.
- * Importante: A Shopee muitas vezes joga para error_page se for Node.js.
  */
 export async function expandShortlink(url: string): Promise<string> {
   let finalUrl = url;
@@ -27,7 +26,6 @@ export async function expandShortlink(url: string): Promise<string> {
 
 /**
  * Faz uma chamada direta à API Oficial de Afiliados da Shopee.
- * Requer o nome exato ou parte do nome do produto.
  */
 export async function fetchShopeeOfficialApi(keyword: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
   const appId = process.env.GLOBAL_SHOPEE_APP_ID || '18396940613';
@@ -68,4 +66,64 @@ export async function fetchShopeeOfficialApi(keyword: string): Promise<{ title: 
     console.error("Erro na API Oficial da Shopee:", error);
     return null;
   }
+}
+
+/**
+ * Ponte secreta via Telegram + ZenRows
+ * Envia o link para um canal do Telegram, aguarda o Telegram gerar o preview,
+ * e então raspa o HTML web do canal usando ZenRows para evitar bloqueio do Cloudflare do Render.
+ */
+export async function resolveShopeeViaTelegram(shortLink: string): Promise<{ title: string, imageUrl: string } | null> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || '8939917793:AAFk9XdOF74IVwepff7M0dQutCMZvkf-BKo';
+  const channelId = '@meubotlinkou';
+  const zenRowsKey = process.env.ZENROWS_API_KEY || '159326979daa756382284d9789d23f5557a9a421';
+
+  if (!botToken || !zenRowsKey) return null;
+
+  try {
+    const sendUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const sendRes = await fetch(sendUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: channelId, text: shortLink })
+    });
+    
+    const sendData = (await sendRes.json()) as any;
+    if (sendData.ok) {
+      const messageId = sendData.result.message_id;
+      // Espera 6 segundos pro Telegram carregar o preview internamente
+      await new Promise(r => setTimeout(r, 6000));
+
+      const channelName = channelId.replace('@', '');
+      const publicUrl = `https://t.me/s/${channelName}/${messageId}`;
+      
+      // Usa ZenRows para puxar o t.me sem ser bloqueado
+      const proxyUrl = `https://api.zenrows.com/v1/?apikey=${zenRowsKey}&url=${encodeURIComponent(publicUrl)}&antibot=true`;
+      const pageRes = await fetch(proxyUrl);
+      const html = await pageRes.text();
+      const $ = cheerio.load(html);
+
+      const title = $('.link_preview_title').text() || '';
+      let imageUrl = '';
+      const bgImage = $('.link_preview_image').css('background-image');
+      if (bgImage) {
+        const match = bgImage.match(/url\(['"]?(.*?)['"]?\)/);
+        if (match && match[1]) { imageUrl = match[1]; }
+      }
+
+      // Cleanup invisível
+      fetch(`https://api.telegram.org/bot${botToken}/deleteMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: channelId, message_id: messageId })
+      }).catch(() => {});
+
+      if (title || imageUrl) {
+        return { title, imageUrl };
+      }
+    }
+  } catch (e) {
+    console.error("Erro no Telegram Bridge via ZenRows:", e);
+  }
+  return null;
 }
