@@ -124,33 +124,123 @@ export async function scrapeProductPuppeteer(longUrl: string): Promise<{ title: 
 
     // Avalia o DOM para extrair dados
     const productData = await page.evaluate(() => {
-      // Pega título
-      const titleEl = document.querySelector('h1');
-      let title = titleEl ? (titleEl as HTMLElement).innerText : '';
-
-      // Tenta pegar o preço
+      let title = '';
       let price = '';
-      const priceSelectors = [
-        'div.pqnscR', '.pqnscR', '.PMuAq5', '.pZkvcx', '.G27FPf', '[class*="price"]'
-      ];
-      for (const sel of priceSelectors) {
-        const el = document.querySelector(sel);
-        if (el && el.textContent && el.textContent.includes('R$')) {
-          price = el.textContent.trim();
-          break;
+      let imageUrl = '';
+
+      // Caso especial: Páginas de perfil/lista social do Mercado Livre (ex: /social/...)
+      const firstPolyCard = document.querySelector('.poly-card');
+      if (firstPolyCard) {
+        const titleEl = firstPolyCard.querySelector('.poly-component__title');
+        if (titleEl && titleEl.textContent) {
+          title = titleEl.textContent.trim();
+        }
+
+        const imgEl = firstPolyCard.querySelector('img.poly-component__picture') || firstPolyCard.querySelector('img');
+        if (imgEl) {
+          imageUrl = (imgEl as HTMLImageElement).src || imgEl.getAttribute('src') || '';
+        }
+
+        const priceEls = Array.from(firstPolyCard.querySelectorAll('.andes-money-amount'));
+        const currentPriceEl = priceEls.length > 1 ? priceEls[1] : priceEls[0];
+        if (currentPriceEl && currentPriceEl.textContent) {
+          // Remove espaços indesejados de quebras de tags internas
+          price = currentPriceEl.textContent.trim().replace(/\s+/g, ' ').replace(/\s*,\s*/g, ',');
         }
       }
 
-      // Pega a imagem principal
-      let imageUrl = '';
-      const imgSelectors = [
-        'picture img', '.ZkIrt\\+', '.product-image img', 'img[src*="cf.shopee.com.br"]'
-      ];
-      for (const sel of imgSelectors) {
-        const el = document.querySelector(sel);
-        if (el && (el as HTMLImageElement).src) {
-          imageUrl = (el as HTMLImageElement).src;
-          break;
+      // Pega título se ainda estiver vazio
+      if (!title) {
+        const titleSelectors = [
+          '#productTitle', 
+          '#title',
+          'h1.ui-pdp-title',
+          '.ui-pdp-title',
+          'h1' // fallback genérico por último
+        ];
+        for (const sel of titleSelectors) {
+          const el = document.querySelector(sel);
+          if (el && el.textContent) {
+            title = el.textContent.trim();
+            break;
+          }
+        }
+      }
+
+      // Tenta pegar o preço se ainda estiver vazio
+      if (!price) {
+        const priceSelectors = [
+          // Shopee selectors
+          'div.pqnscR', '.pqnscR', '.PMuAq5', '.pZkvcx', '.G27FPf',
+          // Amazon selectors
+          'span.a-price span.a-offscreen', '#price_inside_buybox', '#priceblock_ourprice', '#priceblock_dealprice', '.a-price-whole',
+          // Mercado Livre selectors
+          '.ui-pdp-price__second-line .andes-money-amount__fraction', '.andes-money-amount__fraction', '.price-tag-fraction', '.ui-pdp-price .andes-money-amount',
+          // Generic fallback
+          '[class*="price"]', '[class*="price-whole"]'
+        ];
+        for (const sel of priceSelectors) {
+          const el = document.querySelector(sel);
+          if (el && el.textContent) {
+            const text = el.textContent.trim();
+            // Certifica-se de que é um preço numérico ou formatado
+            if (text.includes('R$') || text.includes('$') || /^[0-9.,]+$/.test(text.replace(/\s/g, '').replace('R$', '').replace('$', ''))) {
+              price = text;
+              break;
+            }
+          }
+        }
+      }
+
+      // Pega a imagem principal se ainda estiver vazia
+      if (!imageUrl) {
+        const imgSelectors = [
+          // Amazon selectors (main product images)
+          '#landingImage', '#imgBlkFront', '#imgTagWrapperId img', 'img[data-a-dynamic-image]',
+          // Mercado Livre selectors (main product images)
+          '.ui-pdp-gallery__figure img', 'img.ui-pdp-image', '.ui-pdp-gallery img',
+          // Shopee selectors (main product images)
+          '.ZkIrt\\+', '.product-image img', 'img[src*="cf.shopee.com.br"]',
+          // Generic selectors (tested after specific matches)
+          'picture img',
+          // Generic fallback domains
+          'img[src*="mlstatic.com"]', 'img[src*="amazon.com"]', 'img[src*="media-amazon.com"]'
+        ];
+        for (const sel of imgSelectors) {
+          const el = document.querySelector(sel);
+          if (el) {
+            let src = '';
+            if (el.tagName.toLowerCase() === 'img') {
+              src = (el as HTMLImageElement).src || el.getAttribute('src') || '';
+              // Amazon specific check for data-a-dynamic-image containing URLs
+              const dynamicImg = el.getAttribute('data-a-dynamic-image');
+              if (dynamicImg) {
+                try {
+                  const parsed = JSON.parse(dynamicImg);
+                  const urls = Object.keys(parsed);
+                  if (urls.length > 0) {
+                    src = urls[0];
+                  }
+                } catch (e) {}
+              }
+            } else {
+              const img = el.querySelector('img');
+              if (img) src = img.src || img.getAttribute('src') || '';
+            }
+            if (src && src.startsWith('http')) {
+              imageUrl = src;
+              break;
+            }
+          }
+        }
+      }
+
+      // Tratamento de limpeza para o preço do Mercado Livre / Amazon (se não tiver R$)
+      if (price && !price.includes('R$')) {
+        // Se for só número tipo "1.299" ou "1299,00"
+        const cleanVal = price.replace(/\s/g, '').replace('$', '');
+        if (/^[0-9.,]+$/.test(cleanVal)) {
+          price = 'R$ ' + price.trim();
         }
       }
 
