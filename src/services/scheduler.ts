@@ -1,8 +1,44 @@
 import cron from 'node-cron';
 import { db } from '../config/firebase';
-import { fetchPageData } from './scraper';
+import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer } from './scraper';
 import { generateCreativeFlow, generateOfferFlow } from '../genkit';
 import { sendMessageHelper } from './sender';
+
+function extractKeywordFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    if (urlObj.hostname.includes('shopee')) {
+      const pathParts = urlObj.pathname.split('/');
+      const slug = pathParts.find(p => p.includes('-i.'));
+      if (slug) {
+        return decodeURIComponent(slug.split('-i.')[0].replace(/-/g, ' '));
+      }
+    }
+  } catch (e) {}
+  return "";
+}
+
+function extractItemIdFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    if (urlObj.hostname.includes('shopee')) {
+      // 1. Tenta padrão de slug desktop: -i.shopId.itemId
+      const matchDesktop = urlObj.pathname.match(/-i\.\d+\.(\d+)/);
+      if (matchDesktop && matchDesktop[1]) {
+        return matchDesktop[1];
+      }
+      // 2. Tenta padrão de caminho mobile: /shopName/shopId/itemId
+      const pathParts = urlObj.pathname.split('/').filter(Boolean);
+      if (pathParts.length >= 2) {
+        const lastPart = pathParts[pathParts.length - 1];
+        if (/^\d+$/.test(lastPart)) {
+          return lastPart;
+        }
+      }
+    }
+  } catch (e) {}
+  return "";
+}
 
 export const startScheduler = () => {
   console.log('⏳ Iniciando CronJob de Agendamentos e Campanhas...');
@@ -86,40 +122,127 @@ export const startScheduler = () => {
           console.log(`🚀 Processando link da campanha [${name}]: ${linkUrl}`);
 
           try {
-            // 1. Fetch Integration Settings
-            let integrations: any = {};
-            try {
-              const docSnap = await db.doc(`users/${userId}/settings/integrations`).get();
-              if (docSnap.exists) integrations = docSnap.data() || {};
-            } catch (e) {
-              console.error('Erro ao buscar integrações:', e);
+            let finalUrl = linkUrl;
+            let keyword = extractKeywordFromUrl(finalUrl);
+
+            // 1. Resolução do Redirecionamento via Playwright (Bypass de links curtos)
+            if (!keyword && (
+              linkUrl.includes('s.shopee') ||
+              linkUrl.includes('shope.ee') ||
+              linkUrl.includes('shp.ee') ||
+              linkUrl.includes('shopee.com.br') ||
+              linkUrl.includes('shopee.com')
+            )) {
+              finalUrl = await resolveRedirectPuppeteer(linkUrl);
+              keyword = extractKeywordFromUrl(finalUrl);
+            }
+            
+            // Fallback: Se for só texto ou busca, a keyword é o próprio texto.
+            if (!keyword && !finalUrl.startsWith('http')) {
+              keyword = finalUrl;
             }
 
-            // 2. Extrair dados da página original
-            console.log(`Buscando dados da página para: ${linkUrl}`);
-            const extracted = await fetchPageData(linkUrl, integrations);
-            const imageUrl = extracted.imageUrl || null;
+            // --- CAMADA 1: CACHE NO FIREBASE ---
+            const cacheKey = keyword ? keyword.replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 100) : null;
+            let productTitle = keyword || 'Oferta Especial';
+            let productPrice = '';
+            let productImageUrl = '';
+            let cacheHit = false;
 
-            // 2.5 Extrair informações com Genkit
-            console.log(`Extraindo informações com Genkit para: ${linkUrl}`);
-            const creativeData = await generateCreativeFlow({
-              linkUrl: linkUrl,
-              finalUrl: extracted.finalUrl,
-              pageTitle: extracted.pageTitle,
-              htmlContent: extracted.htmlContent
-            });
-            
+            if (cacheKey) {
+              try {
+                const cacheDoc = await db.collection('productsCache').doc(cacheKey).get();
+                if (cacheDoc.exists) {
+                  const cachedData = cacheDoc.data();
+                  // Verifica se o cache é de hoje (menos de 24h)
+                  const cacheAgeHours = (Date.now() - (cachedData?.timestamp || 0)) / (1000 * 60 * 60);
+                  if (cacheAgeHours < 24) {
+                    console.log('📦 Retornado do Cache do Firebase para Campanha:', cacheKey);
+                    productTitle = cachedData?.productName || productTitle;
+                    productPrice = cachedData?.price || '';
+                    productImageUrl = cachedData?.imageUrl || '';
+                    cacheHit = true;
+                  }
+                }
+              } catch (err) {
+                console.error('Erro ao ler cache do Firebase:', err);
+              }
+            }
+
+            if (!cacheHit) {
+              // --- CAMADA 1.5: CONSULTA DIRETA POR ITEM ID NA API OFICIAL (Bypassa Playwright se funcionar) ---
+              const itemId = extractItemIdFromUrl(finalUrl);
+              if (itemId && (finalUrl.includes('shopee') || linkUrl.includes('shopee'))) {
+                console.log(`[campanhas] Item ID detectado: ${itemId}. Consultando API Oficial diretamente...`);
+                const officialData = await fetchShopeeOfficialApi(itemId);
+                if (officialData) {
+                  productTitle = officialData.title || productTitle;
+                  productPrice = officialData.price || productPrice;
+                  productImageUrl = officialData.imageUrl || productImageUrl;
+                  console.log(`[campanhas] Sucesso na consulta direta por Item ID! Preço: ${productPrice}`);
+                }
+              }
+
+              // --- CAMADA 2: API OFICIAL DA SHOPEE (Por Keyword da URL se a por ID falhar) ---
+              if (!productPrice && keyword) {
+                const officialData = await fetchShopeeOfficialApi(keyword);
+                if (officialData) {
+                  productTitle = officialData.title || productTitle;
+                  productPrice = officialData.price || productPrice;
+                  productImageUrl = officialData.imageUrl || productImageUrl;
+                }
+              }
+
+              // --- CAMADA 3: PLAYWRIGHT FALLBACK ---
+              if (!productPrice || !productImageUrl) {
+                const scrapedData = await scrapeProductPuppeteer(finalUrl);
+                if (scrapedData) {
+                  productTitle = scrapedData.title || productTitle;
+                  productPrice = scrapedData.price || productPrice;
+                  productImageUrl = scrapedData.imageUrl || productImageUrl;
+                }
+              }
+
+              // --- CAMADA 3.5: API OFICIAL FALLBACK COM O TÍTULO RASPADO (Somente Shopee) ---
+              if (!productPrice && productTitle && productTitle !== 'Oferta Especial' && (finalUrl.includes('shopee') || linkUrl.includes('shopee'))) {
+                console.log(`[campanhas] Tentando API Oficial com título raspado: "${productTitle}"`);
+                const officialData = await fetchShopeeOfficialApi(productTitle);
+                if (officialData) {
+                  productTitle = officialData.title || productTitle;
+                  productPrice = officialData.price || productPrice;
+                  productImageUrl = officialData.imageUrl || productImageUrl;
+                  console.log(`[campanhas] Sucesso via API Oficial usando título raspado! Preço: ${productPrice}`);
+                }
+              }
+
+              // --- CAMADA 4: SALVAR NO CACHE ---
+              if (cacheKey && productPrice && productImageUrl) {
+                try {
+                  await db.collection('productsCache').doc(cacheKey).set({
+                    productName: productTitle,
+                    price: productPrice,
+                    imageUrl: productImageUrl,
+                    timestamp: Date.now()
+                  });
+                } catch (err) {
+                  console.error('Erro ao salvar no cache do Firebase:', err);
+                }
+              }
+            }
+
+            const imageUrl = productImageUrl || null;
+
             let platform = 'desconhecida';
             if (linkUrl.includes('amazon') || linkUrl.includes('amzn')) platform = 'amazon';
             else if (linkUrl.includes('shopee') || linkUrl.includes('shp')) platform = 'shopee';
             else if (linkUrl.includes('mercadolivre') || linkUrl.includes('meli')) platform = 'mercadolivre';
 
             // 3. Gerar textos de oferta usando IA
-            console.log(`Gerando IA para: ${creativeData.productName}`);
+            console.log(`Gerando IA para: ${productTitle}`);
             const aiOffer = await generateOfferFlow({
-              productName: creativeData.productName || 'Oferta Imperdível',
-              currentPrice: creativeData.price || 'Confira no site',
-              oldPrice: creativeData.oldPrice || '',
+              productName: productTitle,
+              currentPrice: productPrice || 'Confira no site',
+              oldPrice: '',
               category: '',
               platform,
               affiliateLink: linkUrl
