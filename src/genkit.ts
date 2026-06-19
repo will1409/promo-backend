@@ -38,8 +38,6 @@ Crie textos de divulgação para o seguinte produto:
 Produto: ${input.productName}
 Preço atual: R$ ${input.currentPrice}
 ${input.oldPrice ? `Preço antigo: R$ ${input.oldPrice} (${discount}% de desconto)` : ''}
-${input.category ? `Categoria: ${input.category}` : ''}
-${input.platform ? `Plataforma: ${input.platform}` : ''}
 ${input.affiliateLink ? `Link: ${input.affiliateLink}` : 'Link: [LINK_AFILIADO]'}
 
 Regras IMPORTANTÍSSIMAS:
