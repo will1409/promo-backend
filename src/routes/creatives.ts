@@ -101,6 +101,18 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
       }
     }
 
+    // --- CAMADA 3.5: API OFICIAL FALLBACK COM O TÍTULO RASPADO (Somente Shopee) ---
+    if (!productPrice && productTitle && productTitle !== 'Oferta Especial' && (finalUrl.includes('shopee') || linkUrl.includes('shopee'))) {
+      console.log(`[creatives] Tentando API Oficial com título raspado: "${productTitle}"`);
+      const officialData = await fetchShopeeOfficialApi(productTitle);
+      if (officialData) {
+        productTitle = officialData.title || productTitle;
+        productPrice = officialData.price || productPrice;
+        productImageUrl = officialData.imageUrl || productImageUrl;
+        console.log(`[creatives] Sucesso via API Oficial usando título raspado! Preço: ${productPrice}`);
+      }
+    }
+
     // Se não encontrou preço/imagem, continua mesmo assim com o que temos
     // O frontend vai mostrar os campos em branco para o usuário preencher manualmente
     if (!productPrice && !productImageUrl) {
