@@ -7,36 +7,52 @@ import stealth from 'puppeteer-extra-plugin-stealth';
 chromium.use(stealth());
 
 /**
- * 1. Usa o Playwright para abrir o link curto, aguardar o redirecionamento
- * e extrair a URL final (longa).
+ * 1. Tenta resolver redirecionamentos via requisições HTTP normais (super leve e rápido).
+ * Se falhar, usa o Playwright como fallback absoluto.
  */
 export async function resolveRedirectPuppeteer(shortLink: string): Promise<string> {
-  let browser;
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'],
+    console.log(`[scraper] Resolvendo redirecionamento HTTP para: ${shortLink}`);
+    const res = await fetch(shortLink, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+      },
+      redirect: 'follow'
     });
-    const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
-    });
-    const page = await context.newPage();
     
-    await page.goto(shortLink, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    console.log(`[scraper] Redirecionamento HTTP resolvido com sucesso para: ${res.url}`);
+    return res.url;
+  } catch (e: any) {
+    console.error("[scraper] Erro ao resolver redirecionamento via HTTP fetch:", e.message || e);
+    console.log("[scraper] Tentando fallback para Playwright...");
     
-    // Pega a URL final após todos os redirecionamentos JS
-    const finalUrl = page.url();
-    return finalUrl;
-  } catch (e) {
-    console.error("Erro no Playwright ao resolver redirect:", e);
-    return shortLink; // Retorna o original se falhar
-  } finally {
-    if (browser) await browser.close();
+    let browser;
+    try {
+      browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'],
+      });
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+      });
+      const page = await context.newPage();
+      
+      await page.goto(shortLink, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      const finalUrl = page.url();
+      return finalUrl;
+    } catch (err: any) {
+      console.error("[scraper] Falha no fallback do Playwright:", err.message || err);
+      return shortLink; // Retorna o original se tudo falhar
+    } finally {
+      if (browser) await browser.close();
+    }
   }
 }
 
 /**
  * 2. Faz uma chamada direta à API Oficial de Afiliados da Shopee.
+ * Aceita tanto palavras-chave de texto quanto Item IDs numéricos.
  */
 export async function fetchShopeeOfficialApi(keyword: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
   const appId = process.env.GLOBAL_SHOPEE_APP_ID || '18396940613';
@@ -48,7 +64,12 @@ export async function fetchShopeeOfficialApi(keyword: string): Promise<{ title: 
     cleanKeyword = cleanKeyword.replace(/\.\.\.$/, '').trim();
     if (!cleanKeyword) return null;
 
-    const query = `query { productOfferV2(keyword: "${cleanKeyword}", listType: 0, sortType: 1, limit: 1) { nodes { productName price imageUrl } } }`;
+    // Se a keyword for puramente numérica (Item ID), faz o filtro correto por itemId na query GraphQL
+    const isNumeric = /^\d+$/.test(cleanKeyword);
+    const query = isNumeric
+      ? `query { productOfferV2(itemId: ${cleanKeyword}, listType: 0, sortType: 1, limit: 1) { nodes { productName price imageUrl } } }`
+      : `query { productOfferV2(keyword: "${cleanKeyword}", listType: 0, sortType: 1, limit: 1) { nodes { productName price imageUrl } } }`;
+
     const payloadObj = { query };
     const payload = JSON.stringify(payloadObj);
     const timestamp = Math.floor(Date.now() / 1000);

@@ -20,6 +20,28 @@ function extractKeywordFromUrl(url: string): string {
   return "";
 }
 
+function extractItemIdFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    if (urlObj.hostname.includes('shopee')) {
+      // 1. Tenta padrão de slug desktop: -i.shopId.itemId
+      const matchDesktop = urlObj.pathname.match(/-i\.\d+\.(\d+)/);
+      if (matchDesktop && matchDesktop[1]) {
+        return matchDesktop[1];
+      }
+      // 2. Tenta padrão de caminho mobile: /shopName/shopId/itemId
+      const pathParts = urlObj.pathname.split('/').filter(Boolean);
+      if (pathParts.length >= 2) {
+        const lastPart = pathParts[pathParts.length - 1];
+        if (/^\d+$/.test(lastPart)) {
+          return lastPart;
+        }
+      }
+    }
+  } catch (e) {}
+  return "";
+}
+
 // POST /api/creatives/generate-from-link
 router.post('/generate-from-link', async (req: Request, res: Response) => {
   try {
@@ -81,8 +103,21 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
     let productPrice = '';
     let productImageUrl = '';
 
-    // --- CAMADA 2: API OFICIAL DA SHOPEE ---
-    if (keyword) {
+    // --- CAMADA 1.5: CONSULTA DIRETA POR ITEM ID NA API OFICIAL (Bypassa Playwright se funcionar) ---
+    const itemId = extractItemIdFromUrl(finalUrl);
+    if (itemId && (finalUrl.includes('shopee') || linkUrl.includes('shopee'))) {
+      console.log(`[creatives] Item ID detectado: ${itemId}. Consultando API Oficial diretamente...`);
+      const officialData = await fetchShopeeOfficialApi(itemId);
+      if (officialData) {
+        productTitle = officialData.title || productTitle;
+        productPrice = officialData.price || productPrice;
+        productImageUrl = officialData.imageUrl || productImageUrl;
+        console.log(`[creatives] Sucesso na consulta direta por Item ID! Preço: ${productPrice}`);
+      }
+    }
+
+    // --- CAMADA 2: API OFICIAL DA SHOPEE (Por Keyword da URL se a por ID falhar) ---
+    if (!productPrice && keyword) {
       const officialData = await fetchShopeeOfficialApi(keyword);
       if (officialData) {
         productTitle = officialData.title || productTitle;
