@@ -53,14 +53,8 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
     let finalUrl = linkUrl;
     let keyword = extractKeywordFromUrl(finalUrl);
 
-    // 1. Resolução do Redirecionamento via Playwright (Bypass de links curtos)
-    if (!keyword && (
-      linkUrl.includes('s.shopee') ||
-      linkUrl.includes('shope.ee') ||
-      linkUrl.includes('shp.ee') ||
-      linkUrl.includes('shopee.com.br') ||
-      linkUrl.includes('shopee.com')
-    )) {
+    // 1. Resolução do Redirecionamento (Bypass de links curtos) - Qualquer plataforma (Shopee, Amazon, Mercado Livre, etc.)
+    if (linkUrl && linkUrl.startsWith('http')) {
       finalUrl = await resolveRedirectPuppeteer(linkUrl);
       keyword = extractKeywordFromUrl(finalUrl);
     }
