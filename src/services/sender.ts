@@ -19,6 +19,25 @@ export async function sendMessageHelper(
       throw new Error('Telegram Bot Token não configurado nas Integrações.');
     }
 
+    // Extrai o primeiro link da mensagem para criar o botão clicável
+    const linkRegex = /(https?:\/\/[^\s]+)/;
+    const match = message.match(linkRegex);
+    const linkUrl = match ? match[0] : null;
+
+    let replyMarkup: any = undefined;
+    if (linkUrl) {
+      replyMarkup = {
+        inline_keyboard: [
+          [
+            {
+              text: '🛒 Compre Aqui',
+              url: linkUrl
+            }
+          ]
+        ]
+      };
+    }
+
     let tgResponse;
     if (imageUrl && imageUrl.startsWith('data:image')) {
       const base64Data = imageUrl.split(',')[1];
@@ -29,6 +48,9 @@ export async function sendMessageHelper(
       formData.append('photo', blob, 'oferta.jpg');
       formData.append('caption', message);
       formData.append('parse_mode', 'HTML');
+      if (replyMarkup) {
+        formData.append('reply_markup', JSON.stringify(replyMarkup));
+      }
 
       tgResponse = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
         method: 'POST',
@@ -42,7 +64,8 @@ export async function sendMessageHelper(
           chat_id: targetId,
           photo: imageUrl,
           caption: message,
-          parse_mode: 'HTML'
+          parse_mode: 'HTML',
+          reply_markup: replyMarkup
         })
       });
     } else {
@@ -52,7 +75,8 @@ export async function sendMessageHelper(
         body: JSON.stringify({
           chat_id: targetId,
           text: message,
-          parse_mode: 'HTML'
+          parse_mode: 'HTML',
+          reply_markup: replyMarkup
         })
       });
     }

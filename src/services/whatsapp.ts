@@ -122,46 +122,6 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
   // Ensure targetId format is correct (JID)
   const jid = targetId.includes('@') ? targetId : `${targetId}@g.us`;
   
-  // Extract link from message to use as sourceUrl
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  const match = message.match(urlRegex);
-  const linkUrl = match ? match[0] : '';
-
-  if (imageUrl && linkUrl) {
-    try {
-      let thumbnailData;
-      if (imageUrl.startsWith('data:image')) {
-        const base64Data = imageUrl.split(',')[1];
-        thumbnailData = Buffer.from(base64Data, 'base64');
-      } else {
-        // Download image to attach as buffer
-        const fetch = require('node-fetch');
-        const response = await fetch(imageUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        thumbnailData = Buffer.from(arrayBuffer);
-      }
-
-      await session.socket.sendMessage(jid, {
-        text: message,
-        contextInfo: {
-          externalAdReply: {
-            title: "Acessar Oferta",
-            body: "Clique aqui para ver mais",
-            thumbnail: thumbnailData,
-            sourceUrl: linkUrl,
-            mediaType: 1, // 1 = image
-            renderLargerThumbnail: true // Make it a large banner
-          }
-        }
-      });
-      return; // Sucesso
-    } catch (err) {
-      console.error('[WhatsApp] Erro ao criar Link Preview forçado, usando fallback:', err);
-      // Fallback below
-    }
-  }
-
-  // Fallback antigo caso não tenha link ou dê erro ao baixar a thumb
   if (imageUrl) {
     if (imageUrl.startsWith('data:image')) {
       const base64Data = imageUrl.split(',')[1];
