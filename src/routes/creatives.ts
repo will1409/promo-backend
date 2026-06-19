@@ -180,4 +180,24 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/test-scraper', async (req: Request, res: Response) => {
+  let browser;
+  try {
+    const { chromium } = require('playwright-extra');
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'],
+    });
+    const version = browser.version();
+    await browser.close();
+    return res.json({ success: true, message: `Playwright Chromium launched successfully! Version: ${version}` });
+  } catch (err: any) {
+    return res.json({ 
+      success: false, 
+      error: err.message || String(err), 
+      stack: err.stack || '' 
+    });
+  }
+});
+
 export default router;
