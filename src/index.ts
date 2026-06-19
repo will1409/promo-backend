@@ -88,6 +88,20 @@ app.get('/api/health', async (_req, res) => {
   });
 });
 
+app.get('/api/health/schedules', async (_req, res) => {
+  try {
+    const { db } = require('./config/firebase');
+    const snapshot = await db.collection('scheduled_offers').orderBy('createdAt', 'desc').limit(20).get();
+    const list = snapshot.docs.map((doc: any) => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    res.json({ success: true, list });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Rotas
 app.use('/api/offers', offersRouter);
 app.use('/api/chat', chatRouter);
