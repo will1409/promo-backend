@@ -1,5 +1,10 @@
 import crypto from 'crypto';
 import fetch from 'node-fetch';
+import path from 'path';
+
+// Define a pasta local do Playwright para garantir que o executável seja encontrado no Render
+process.env.PLAYWRIGHT_BROWSERS_PATH = path.join(__dirname, '../../ms-playwright');
+
 import { chromium } from 'playwright-extra';
 import stealth from 'puppeteer-extra-plugin-stealth';
 
