@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { db } from '../config/firebase';
 import { fetchPageData } from './scraper';
 import { generateCreativeFlow, generateOfferFlow } from '../genkit';
+import { sendMessageHelper } from './sender';
 
 export const startScheduler = () => {
   console.log('⏳ Iniciando CronJob de Agendamentos e Campanhas...');
@@ -10,7 +11,6 @@ export const startScheduler = () => {
   cron.schedule('* * * * *', async () => {
     try {
       const now = new Date().toISOString();
-      const port = process.env.PORT || 3001;
 
       // ============================================
       // LÓGICA DE AGENDAMENTOS (Agendamentos Unitários)
@@ -29,29 +29,28 @@ export const startScheduler = () => {
 
           for (const channel of targetChannels) {
             try {
-              const res = await fetch(`http://127.0.0.1:${port}/api/channels/send`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  userId,
-                  channelType: channel.type,
-                  targetId: channel.targetId || channel.id, // Fallback for schema variance
-                  message: messageText,
-                  imageUrl: schedule.imageUrl
-                })
-              });
-              const data: any = await res.json();
-              if (data.success) {
-                sentCount++;
-                const channelRef = db.doc(`users/${userId}/channels/${channel.id}`);
-                const channelSnap = await channelRef.get();
-                if (channelSnap.exists) {
-                  const cData = channelSnap.data();
-                  await channelRef.update({ totalSent: (cData?.totalSent || 0) + 1, lastSent: 'Automático' });
-                }
+              // Buscar o canal atualizado no Firestore para pegar o targetId correto e o status atual
+              const channelRef = db.doc(`users/${userId}/channels/${channel.id}`);
+              const channelSnap = await channelRef.get();
+              
+              if (!channelSnap.exists) {
+                console.warn(`Canal ${channel.name} (${channel.id}) não existe mais.`);
+                continue;
               }
-            } catch (e) {
-              console.error(`Erro ao disparar agendamento ${doc.id} para ${channel.name}:`, e);
+
+              const channelData = channelSnap.data();
+              if (channelData?.status === 'paused') {
+                console.log(`Canal ${channel.name} está pausado, pulando disparo.`);
+                continue;
+              }
+
+              const channelTargetId = channelData?.targetId || channel.targetId || channel.id;
+              await sendMessageHelper(userId, messageText, channel.type || channelData?.type, channelTargetId, schedule.imageUrl);
+              
+              sentCount++;
+              await channelRef.update({ totalSent: (channelData?.totalSent || 0) + 1, lastSent: 'Automático' });
+            } catch (e: any) {
+              console.error(`Erro ao disparar agendamento ${doc.id} para ${channel.name}:`, e.message || e);
             }
           }
 
@@ -82,7 +81,7 @@ export const startScheduler = () => {
             await doc.ref.update({ status: 'finished' });
             continue;
           }
-
+ 
           const linkUrl = links[currentIndex];
           console.log(`🚀 Processando link da campanha [${name}]: ${linkUrl}`);
 
@@ -135,32 +134,29 @@ export const startScheduler = () => {
               else if (channel.type === 'instagram') msgContent = aiOffer.instagram;
               
               try {
-                const res = await fetch(`http://127.0.0.1:${port}/api/channels/send`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    userId,
-                    channelType: channel.type,
-                    targetId: channel.targetId || channel.id,
-                    message: msgContent,
-                    imageUrl: imageUrl
-                  })
-                });
-                const data: any = await res.json();
-                if (data.success) {
-                  sentCount++;
-                  // Atualiza totalSent
-                  const channelRef = db.doc(`users/${userId}/channels/${channel.id}`);
-                  const channelSnap = await channelRef.get();
-                  if (channelSnap.exists) {
-                    const cData = channelSnap.data();
-                    await channelRef.update({ totalSent: (cData?.totalSent || 0) + 1, lastSent: 'Automático (Campanha)' });
-                  }
-                } else {
-                  console.error(`Erro ao enviar esteira para canal:`, data.error);
+                // Buscar o canal atualizado no Firestore para pegar o targetId correto e o status atual
+                const channelRef = db.doc(`users/${userId}/channels/${channel.id}`);
+                const channelSnap = await channelRef.get();
+                
+                if (!channelSnap.exists) {
+                  console.warn(`Canal ${channel.name} (${channel.id}) não existe mais.`);
+                  continue;
                 }
-              } catch (err) {
-                console.error('Erro na requisição interna de envio (Campanha):', err);
+
+                const channelData = channelSnap.data();
+                if (channelData?.status === 'paused') {
+                  console.log(`Canal ${channel.name} está pausado, pulando disparo.`);
+                  continue;
+                }
+
+                const channelTargetId = channelData?.targetId || channel.targetId || channel.id;
+                await sendMessageHelper(userId, msgContent, channel.type || channelData?.type, channelTargetId, imageUrl);
+                
+                sentCount++;
+                // Atualiza totalSent
+                await channelRef.update({ totalSent: (channelData?.totalSent || 0) + 1, lastSent: 'Automático (Campanha)' });
+              } catch (err: any) {
+                console.error(`Erro ao enviar esteira para canal (Campanha):`, err.message || err);
               }
             }
             
