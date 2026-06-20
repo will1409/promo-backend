@@ -102,6 +102,40 @@ app.get('/api/health/schedules', async (_req, res) => {
   }
 });
 
+app.get('/api/health/diagnose-wa', async (_req, res) => {
+  try {
+    const { db } = require('./config/firebase');
+    const snapshot = await db.collection('scheduled_offers').orderBy('createdAt', 'desc').limit(5).get();
+    const offers = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+
+    const results = [];
+    const { getWhatsAppStatus } = require('./services/whatsapp');
+
+    for (const offer of offers) {
+      const userId = offer.userId;
+      if (!userId) continue;
+
+      const status = await getWhatsAppStatus(userId);
+      const credsSnap = await db.collection('users').doc(userId).collection('whatsapp_auth').doc('creds').get();
+      const hasCreds = credsSnap.exists;
+
+      results.push({
+        offerId: offer.id,
+        userId: userId,
+        status: offer.status,
+        scheduledFor: offer.scheduledFor,
+        targetChannels: offer.targetChannels,
+        whatsappStatus: status,
+        hasCredsInDb: hasCreds
+      });
+    }
+
+    res.json({ success: true, count: results.length, data: results });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Rotas
 app.use('/api/offers', offersRouter);
 app.use('/api/chat', chatRouter);
