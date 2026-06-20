@@ -86,8 +86,11 @@ Responda usando a estrutura fornecida.`;
   }
 
   const responseJson = await chatRes.json();
-  const content = responseJson.choices?.[0]?.message?.content;
+  let content = responseJson.choices?.[0]?.message?.content;
   if (!content) throw new Error('Falha ao gerar oferta com Groq (resposta vazia).');
+
+  // Remove possible markdown formatting
+  content = content.replace(/```json/gi, '').replace(/```/g, '').trim();
 
   let generatedData: any = {};
   try {

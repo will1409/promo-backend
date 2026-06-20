@@ -73,8 +73,10 @@ Responda APENAS em JSON com esta estrutura exata:
     response_format: { type: 'json_object' },
   });
 
-  const content = completion.choices[0].message.content;
+  let content = completion.choices[0].message.content;
   if (!content) throw new Error('Resposta vazia da IA');
+
+  content = content.replace(/```json/gi, '').replace(/```/g, '').trim();
 
   return JSON.parse(content) as GeneratedOffer;
 }
