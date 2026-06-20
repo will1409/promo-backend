@@ -34,7 +34,7 @@ router.get('/diagnose-whatsapp', async (req: Request, res: Response) => {
       .limit(5)
       .get();
       
-    const offers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const offers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
     const results = [];
     const { getWhatsAppStatus } = require('../services/whatsapp');
