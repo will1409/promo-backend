@@ -116,4 +116,5 @@ app.use('/api/esteiras', campaignsRouter);
 app.listen(port, () => {
   console.log(`✅ Server rodando na porta ${port}`);
   console.log(`🔑 OpenAI Key: ${process.env.OPENAI_API_KEY ? 'Configurada ✅' : 'NÃO CONFIGURADA ❌'}`);
+// test-push-auth
 });
