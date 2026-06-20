@@ -282,7 +282,8 @@ export const startScheduler = () => {
             // 7. Update Campaign Status
             const nextIndex = currentIndex + 1;
             const newStatus = nextIndex >= links.length ? 'finished' : 'active';
-            const nextRunDate = new Date(Date.now() + intervalMinutes * 60000).toISOString();
+            const safeInterval = Number(intervalMinutes) || 60;
+            const nextRunDate = new Date(Date.now() + safeInterval * 60000).toISOString();
 
             await doc.ref.update({
               currentIndex: nextIndex,
@@ -295,7 +296,8 @@ export const startScheduler = () => {
             // On error, skip to next link to avoid getting stuck
             const nextIndex = currentIndex + 1;
             const newStatus = nextIndex >= links.length ? 'finished' : 'active';
-            const nextRunDate = new Date(Date.now() + intervalMinutes * 60000).toISOString();
+            const safeInterval = Number(intervalMinutes) || 60;
+            const nextRunDate = new Date(Date.now() + safeInterval * 60000).toISOString();
             await doc.ref.update({
               currentIndex: nextIndex,
               status: newStatus,
