@@ -25,51 +25,6 @@ router.post('/generate', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/offers/diagnose-whatsapp — Diagnóstico do WhatsApp
-router.get('/diagnose-whatsapp', async (req: Request, res: Response) => {
-  try {
-    // 1. Buscar os agendamentos mais recentes no banco
-    const snapshot = await db.collection('scheduled_offers')
-      .orderBy('createdAt', 'desc')
-      .limit(5)
-      .get();
-      
-    const offers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-
-    const results = [];
-    const { getWhatsAppStatus } = require('../services/whatsapp');
-
-    for (const offer of offers) {
-      const userId = offer.userId;
-      if (!userId) continue;
-
-      // 2. Verificar status da sessão
-      const status = await getWhatsAppStatus(userId);
-
-      // 3. Verificar se tem credenciais no firestore
-      const credsSnap = await db.collection('users').doc(userId).collection('whatsapp_auth').doc('creds').get();
-      const hasCreds = credsSnap.exists;
-
-      results.push({
-        offerId: offer.id,
-        userId: userId,
-        status: offer.status,
-        scheduledFor: offer.scheduledFor,
-        targetChannels: offer.targetChannels,
-        whatsappStatus: status,
-        hasCredsInDb: hasCreds
-      });
-    }
-
-    return res.json({ 
-      success: true, 
-      count: results.length,
-      data: results
-    });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message || String(err) });
-  }
-});
 
 // GET /api/offers/:userId — Lista ofertas do usuário
 router.get('/:userId', async (req: Request, res: Response) => {
