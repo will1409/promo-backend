@@ -136,6 +136,15 @@ app.get('/api/health/diagnose-wa', async (_req, res) => {
   }
 });
 
+app.get('/api/health/whatsapp-logs', (_req, res) => {
+  try {
+    const { connectionLogs } = require('./services/whatsapp');
+    res.json({ success: true, logs: connectionLogs });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Rotas
 app.use('/api/offers', offersRouter);
 app.use('/api/chat', chatRouter);

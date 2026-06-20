@@ -12,6 +12,7 @@ interface WhatsAppSession {
 
 const sessions: { [userId: string]: WhatsAppSession } = {};
 const logger = pino({ level: 'silent' });
+export const connectionLogs: string[] = [];
 
 export const startWhatsAppSession = async (userId: string) => {
   if (sessions[userId] && sessions[userId].status === 'connected') {
@@ -39,6 +40,11 @@ export const startWhatsAppSession = async (userId: string) => {
 
   socket.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr } = update;
+
+    const err = lastDisconnect?.error;
+    const logMsg = `[${new Date().toISOString()}] User ${userId}: connection=${connection || 'none'}, status=${sessions[userId]?.status || 'none'}, error=${err ? (err.message || String(err)) : 'none'}`;
+    connectionLogs.push(logMsg);
+    if (connectionLogs.length > 50) connectionLogs.shift();
 
     if (qr) {
       try {
