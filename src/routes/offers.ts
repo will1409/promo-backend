@@ -25,44 +25,6 @@ router.post('/generate', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/offers/:userId — Lista ofertas do usuário
-router.get('/:userId', async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-    const snapshot = await db.collection('offers').where('userId', '==', userId).orderBy('createdAt', 'desc').limit(50).get();
-    const offers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    return res.json({ success: true, data: offers });
-  } catch (error: any) {
-    console.error('[/api/offers/:userId]', error.message);
-    return res.status(500).json({ error: 'Erro ao buscar ofertas.' });
-  }
-});
-
-// POST /api/offers/schedule — Agendar oferta
-router.post('/schedule', async (req: Request, res: Response) => {
-  try {
-    const { userId, messageText, targetChannels, scheduledFor, imageUrl } = req.body;
-    if (!userId || !messageText || !targetChannels || !scheduledFor) {
-      return res.status(400).json({ error: 'Faltam campos obrigatórios' });
-    }
-
-    const docRef = await db.collection('scheduled_offers').add({
-      userId,
-      messageText,
-      targetChannels,
-      scheduledFor, // ISO date string
-      imageUrl: imageUrl || null,
-      status: 'pending',
-      createdAt: new Date().toISOString()
-    });
-
-    return res.json({ success: true, id: docRef.id });
-  } catch (error: any) {
-    console.error('[/api/offers/schedule]', error.message);
-    return res.status(500).json({ error: 'Erro ao agendar oferta.' });
-  }
-});
-
 // GET /api/offers/diagnose-whatsapp — Diagnóstico do WhatsApp
 router.get('/diagnose-whatsapp', async (req: Request, res: Response) => {
   try {
@@ -106,6 +68,44 @@ router.get('/diagnose-whatsapp', async (req: Request, res: Response) => {
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message || String(err) });
+  }
+});
+
+// GET /api/offers/:userId — Lista ofertas do usuário
+router.get('/:userId', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const snapshot = await db.collection('offers').where('userId', '==', userId).orderBy('createdAt', 'desc').limit(50).get();
+    const offers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return res.json({ success: true, data: offers });
+  } catch (error: any) {
+    console.error('[/api/offers/:userId]', error.message);
+    return res.status(500).json({ error: 'Erro ao buscar ofertas.' });
+  }
+});
+
+// POST /api/offers/schedule — Agendar oferta
+router.post('/schedule', async (req: Request, res: Response) => {
+  try {
+    const { userId, messageText, targetChannels, scheduledFor, imageUrl } = req.body;
+    if (!userId || !messageText || !targetChannels || !scheduledFor) {
+      return res.status(400).json({ error: 'Faltam campos obrigatórios' });
+    }
+
+    const docRef = await db.collection('scheduled_offers').add({
+      userId,
+      messageText,
+      targetChannels,
+      scheduledFor, // ISO date string
+      imageUrl: imageUrl || null,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    });
+
+    return res.json({ success: true, id: docRef.id });
+  } catch (error: any) {
+    console.error('[/api/offers/schedule]', error.message);
+    return res.status(500).json({ error: 'Erro ao agendar oferta.' });
   }
 });
 
