@@ -55,7 +55,8 @@ Crie:
 [Breve mensagem persuasiva]
 
 Todas as ofertas são válidas por tempo limitado!
-4. Legenda para Instagram com emojis e hashtags relevantes (mínimo 10 hashtags)
+
+Atenção: NÃO é necessário gerar texto ou legenda para o Instagram. Deixe o campo "instagram" como uma string vazia "".
 
 Responda APENAS em JSON com esta estrutura exata:
 {
@@ -63,7 +64,7 @@ Responda APENAS em JSON com esta estrutura exata:
   "description": "...",
   "whatsapp": "...",
   "telegram": "...",
-  "instagram": "..."
+  "instagram": ""
 }`;
 
   const completion = await openai.chat.completions.create({

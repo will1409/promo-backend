@@ -58,7 +58,8 @@ Crie:
 [Breve mensagem persuasiva]
 
 Todas as ofertas são válidas por tempo limitado!
-4. Legenda para Instagram com emojis e hashtags relevantes (mínimo 10 hashtags)
+
+Atenção: NÃO é necessário gerar texto ou legenda para o Instagram. Deixe o campo "instagram" como uma string vazia "".
 
 Responda usando a estrutura fornecida.`;
 
