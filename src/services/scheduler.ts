@@ -87,6 +87,21 @@ export const startScheduler = () => {
               await channelRef.update({ totalSent: (channelData?.totalSent || 0) + 1, lastSent: 'Automático' });
             } catch (e: any) {
               console.error(`Erro ao disparar agendamento ${doc.id} para ${channel.name}:`, e.message || e);
+              try {
+                const admin = require('firebase-admin');
+                const errorItem = {
+                  channelId: channel.id || null,
+                  channelName: channel.name || null,
+                  channelType: channel.type || channelData?.type || 'unknown',
+                  errorMessage: e.message || String(e),
+                  timestamp: new Date().toISOString()
+                };
+                await doc.ref.update({
+                  errors: admin.firestore.FieldValue.arrayUnion(errorItem)
+                });
+              } catch (err) {
+                console.error('Erro ao salvar log de erro no Firestore:', err);
+              }
             }
           }
 
@@ -274,6 +289,21 @@ export const startScheduler = () => {
                 await channelRef.update({ totalSent: (channelData?.totalSent || 0) + 1, lastSent: 'Automático (Campanha)' });
               } catch (err: any) {
                 console.error(`Erro ao enviar esteira para canal (Campanha):`, err.message || err);
+                try {
+                  const admin = require('firebase-admin');
+                  const errorItem = {
+                    channelId: channel.id || null,
+                    channelName: channel.name || null,
+                    channelType: channel.type || channelData?.type || 'unknown',
+                    errorMessage: err.message || String(err),
+                    timestamp: new Date().toISOString()
+                  };
+                  await doc.ref.update({
+                    errors: admin.firestore.FieldValue.arrayUnion(errorItem)
+                  });
+                } catch (err2) {
+                  console.error('Erro ao salvar log de erro da campanha no Firestore:', err2);
+                }
               }
             }
             
