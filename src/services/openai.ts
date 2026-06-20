@@ -78,5 +78,18 @@ Responda APENAS em JSON com esta estrutura exata:
 
   content = content.replace(/```json/gi, '').replace(/```/g, '').trim();
 
-  return JSON.parse(content) as GeneratedOffer;
+  let generatedData: GeneratedOffer;
+  try {
+    const match = content.match(/\{[\s\S]*\}/);
+    if (match) {
+      generatedData = JSON.parse(match[0]) as GeneratedOffer;
+    } else {
+      generatedData = JSON.parse(content) as GeneratedOffer;
+    }
+  } catch (e) {
+    console.error('Erro ao fazer parse do JSON da IA:', e);
+    throw new Error('Resposta da IA inválida ou mal formatada.');
+  }
+
+  return generatedData;
 }

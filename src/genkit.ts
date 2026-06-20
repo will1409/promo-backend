@@ -94,7 +94,12 @@ Responda usando a estrutura fornecida.`;
 
   let generatedData: any = {};
   try {
-    generatedData = JSON.parse(content);
+    const match = content.match(/\{[\s\S]*\}/);
+    if (match) {
+      generatedData = JSON.parse(match[0]);
+    } else {
+      generatedData = JSON.parse(content);
+    }
   } catch (e) {
     console.error('Erro ao fazer parse do JSON da IA:', e);
     throw new Error('Resposta da IA inválida ou mal formatada.');
