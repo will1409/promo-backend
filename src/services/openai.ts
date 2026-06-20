@@ -45,9 +45,17 @@ ${input.affiliateLink ? `Link: ${input.affiliateLink}` : 'Link: [LINK_AFILIADO]'
 Crie:
 1. Um título chamativo (máximo 80 caracteres)
 2. Uma descrição curta e persuasiva (máximo 150 caracteres)
-3. Texto para WhatsApp com emojis, formatação em negrito (*texto*) e destaque no preço
-4. Texto para Telegram com formatação Markdown (**negrito**) e link clicável
-5. Legenda para Instagram com emojis e hashtags relevantes (mínimo 10 hashtags)
+3. Textos para "whatsapp" e "telegram". ELES DEVEM SEGUIR EXATAMENTE ESTE FORMATO (com as quebras de linha e emojis, preenchendo os dados reais):
+[Nome do Produto]
+
+🔥 Por: R$ [Preço]
+
+🛒 Link de compra: [Link]
+
+[Breve mensagem persuasiva]
+
+Todas as ofertas são válidas por tempo limitado!
+4. Legenda para Instagram com emojis e hashtags relevantes (mínimo 10 hashtags)
 
 Responda APENAS em JSON com esta estrutura exata:
 {

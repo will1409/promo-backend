@@ -21,7 +21,7 @@ router.post('/create', async (req: Request, res: Response) => {
       intervalMinutes,
       currentIndex: 0,
       status: 'active',
-      nextRunAt: new Date().toISOString(), // Start immediately
+      nextRunAt: new Date(Date.now() + intervalMinutes * 60000).toISOString(),
       createdAt: new Date().toISOString()
     });
 
