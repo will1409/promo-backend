@@ -126,6 +126,22 @@ const forceResetSession = async (userId: string): Promise<void> => {
   await startWhatsAppSession(userId);
 };
 
+async function fetchImageBufferWithTimeout(url: string, timeoutMs: number = 8000): Promise<Buffer | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!response.ok) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (e: any) {
+    clearTimeout(timeoutId);
+    console.error(`[WhatsApp] Erro ao baixar imagem da URL ${url}:`, e.message || e);
+    return null;
+  }
+}
+
 export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string) => {
   // Garante que a sessão existe e não está desconectada
   if (!sessions[userId] || sessions[userId].status === 'disconnected') {
@@ -163,15 +179,35 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
   
   if (imageUrl) {
     if (imageUrl.startsWith('data:image')) {
-      const base64Data = imageUrl.split(',')[1];
-      const buffer = Buffer.from(base64Data, 'base64');
-      await session.socket.sendMessage(jid, { image: buffer, caption: message });
+      try {
+        const base64Data = imageUrl.split(',')[1];
+        const buffer = Buffer.from(base64Data, 'base64');
+        await session.socket.sendMessage(jid, { image: buffer, caption: message });
+        console.log(`[WhatsApp] Mensagem com imagem base64 enviada com sucesso para ${jid}`);
+        return;
+      } catch (err: any) {
+        console.error('[WhatsApp] Erro ao enviar imagem base64, tentando texto como fallback:', err.message || err);
+      }
     } else {
-      await session.socket.sendMessage(jid, { image: { url: imageUrl }, caption: message });
+      console.log(`[WhatsApp] Baixando imagem com timeout de 10s: ${imageUrl}`);
+      const imageBuffer = await fetchImageBufferWithTimeout(imageUrl, 10000);
+      if (imageBuffer) {
+        try {
+          await session.socket.sendMessage(jid, { image: imageBuffer, caption: message });
+          console.log(`[WhatsApp] Mensagem com imagem baixada enviada com sucesso para ${jid}`);
+          return;
+        } catch (err: any) {
+          console.error('[WhatsApp] Erro ao enviar imagem baixada, tentando texto como fallback:', err.message || err);
+        }
+      } else {
+        console.warn('[WhatsApp] Falha ao baixar imagem, enviando como texto apenas.');
+      }
     }
-  } else {
-    await session.socket.sendMessage(jid, { text: message });
   }
+
+  // Fallback para texto simples
+  await session.socket.sendMessage(jid, { text: message });
+  console.log(`[WhatsApp] Mensagem de texto enviada com sucesso para ${jid}`);
 };
 
 export const getWhatsAppGroups = async (userId: string) => {
