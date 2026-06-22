@@ -64,6 +64,7 @@ export const startScheduler = () => {
           let sentCount = 0;
 
           for (const channel of targetChannels) {
+            let channelData: FirebaseFirestore.DocumentData | undefined;
             try {
               // Buscar o canal atualizado no Firestore para pegar o targetId correto e o status atual
               const channelRef = db.doc(`users/${userId}/channels/${channel.id}`);
@@ -74,7 +75,7 @@ export const startScheduler = () => {
                 continue;
               }
 
-              const channelData = channelSnap.data();
+              channelData = channelSnap.data();
               if (channelData?.status === 'paused') {
                 console.log(`Canal ${channel.name} está pausado, pulando disparo.`);
                 continue;
@@ -265,6 +266,7 @@ export const startScheduler = () => {
               else if (channel.type === 'telegram') msgContent = aiOffer.telegram;
               else if (channel.type === 'instagram') msgContent = aiOffer.instagram;
               
+              let channelData: FirebaseFirestore.DocumentData | undefined;
               try {
                 // Buscar o canal atualizado no Firestore para pegar o targetId correto e o status atual
                 const channelRef = db.doc(`users/${userId}/channels/${channel.id}`);
@@ -275,7 +277,7 @@ export const startScheduler = () => {
                   continue;
                 }
 
-                const channelData = channelSnap.data();
+                channelData = channelSnap.data();
                 if (channelData?.status === 'paused') {
                   console.log(`Canal ${channel.name} está pausado, pulando disparo.`);
                   continue;

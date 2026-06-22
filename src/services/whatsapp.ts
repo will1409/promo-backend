@@ -118,16 +118,16 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
   }
 
   // Aguarda a conexão se ainda estiver em processo (connecting / qr)
-  if (session.status !== 'connected') {
-    console.log(`[WhatsApp] Aguardando conexão para ${userId} (status atual: ${session.status})...`);
+  if ((sessions[userId] as WhatsAppSession).status !== 'connected') {
+    console.log(`[WhatsApp] Aguardando conexão para ${userId} (status atual: ${sessions[userId]?.status})...`);
     let retries = 0;
-    while (session.status !== 'connected' && retries < 30) {
+    while ((sessions[userId] as WhatsAppSession).status !== 'connected' && retries < 30) {
       await new Promise(r => setTimeout(r, 1000));
       retries++;
     }
 
-    if (session.status !== 'connected') {
-      throw new Error(`WhatsApp não pôde ser conectado para o usuário ${userId}. Status: ${session.status}`);
+    if ((sessions[userId] as WhatsAppSession).status !== 'connected') {
+      throw new Error(`WhatsApp não pôde ser conectado para o usuário ${userId}. Status: ${sessions[userId]?.status}`);
     }
   }
 
