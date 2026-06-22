@@ -1,3 +1,5 @@
+process.env.GRPC_DNS_RESOLVER = 'native';
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
