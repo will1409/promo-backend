@@ -181,9 +181,11 @@ app.get('/api/health/whatsapp-logs', (_req, res) => {
   }
 });
 
-app.get('/api/health/logs', (_req, res) => {
+app.get('/api/health/logs', (req, res) => {
   try {
-    res.json({ success: true, logs: systemLogs });
+    const limit = parseInt(req.query.limit as string) || 100;
+    const logs = systemLogs.slice(-limit);
+    res.json({ success: true, logs });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
