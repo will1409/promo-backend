@@ -23,7 +23,8 @@ export async function resolveRedirectPuppeteer(shortLink: string): Promise<strin
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
       },
-      redirect: 'follow'
+      redirect: 'follow',
+      timeout: 10000 // 10 segundos
     });
     
     console.log(`[scraper] Redirecionamento HTTP resolvido com sucesso para: ${res.url}`);
@@ -87,7 +88,8 @@ export async function fetchShopeeOfficialApi(keyword: string): Promise<{ title: 
         'Content-Type': 'application/json',
         'Authorization': `SHA256 Credential=${appId},Timestamp=${timestamp},Signature=${signature}`
       },
-      body: payload
+      body: payload,
+      timeout: 10000 // 10 segundos
     });
 
     const data: any = await res.json();

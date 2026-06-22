@@ -176,6 +176,25 @@ function fetchImageBufferWithTimeout(url: string, timeoutMs: number = 8000): Pro
   });
 }
 
+// Helper para embrulhar qualquer promise em um timeout
+const promiseWithTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(errorMsg));
+    }, timeoutMs);
+
+    promise
+      .then((res) => {
+        clearTimeout(timeoutId);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timeoutId);
+        reject(err);
+      });
+  });
+};
+
 export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string) => {
   // Garante que a sessão existe e não está desconectada
   if (!sessions[userId] || sessions[userId].status === 'disconnected') {
@@ -216,7 +235,12 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
       try {
         const base64Data = imageUrl.split(',')[1];
         const buffer = Buffer.from(base64Data, 'base64');
-        await session.socket.sendMessage(jid, { image: buffer, caption: message });
+        console.log(`[WhatsApp] Enviando imagem base64 com timeout de 20s para ${jid}...`);
+        await promiseWithTimeout(
+          session.socket.sendMessage(jid, { image: buffer, caption: message }),
+          20000,
+          'Timeout de 20s ao enviar imagem base64'
+        );
         console.log(`[WhatsApp] Mensagem com imagem base64 enviada com sucesso para ${jid}`);
         return;
       } catch (err: any) {
@@ -227,7 +251,12 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
       const imageBuffer = await fetchImageBufferWithTimeout(imageUrl, 10000);
       if (imageBuffer) {
         try {
-          await session.socket.sendMessage(jid, { image: imageBuffer, caption: message });
+          console.log(`[WhatsApp] Enviando imagem baixada com timeout de 20s para ${jid}...`);
+          await promiseWithTimeout(
+            session.socket.sendMessage(jid, { image: imageBuffer, caption: message }),
+            20000,
+            'Timeout de 20s ao enviar imagem baixada'
+          );
           console.log(`[WhatsApp] Mensagem com imagem baixada enviada com sucesso para ${jid}`);
           return;
         } catch (err: any) {
@@ -240,8 +269,18 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
   }
 
   // Fallback para texto simples
-  await session.socket.sendMessage(jid, { text: message });
-  console.log(`[WhatsApp] Mensagem de texto enviada com sucesso para ${jid}`);
+  try {
+    console.log(`[WhatsApp] Enviando texto com timeout de 15s para ${jid}...`);
+    await promiseWithTimeout(
+      session.socket.sendMessage(jid, { text: message }),
+      15000,
+      'Timeout de 15s ao enviar mensagem de texto'
+    );
+    console.log(`[WhatsApp] Mensagem de texto enviada com sucesso para ${jid}`);
+  } catch (err: any) {
+    console.error(`[WhatsApp] Erro ao enviar mensagem de texto para ${jid}:`, err.message || err);
+    throw err; // Repassa o erro para que o scheduler trate e não trave a esteira
+  }
 };
 
 export const getWhatsAppGroups = async (userId: string) => {
