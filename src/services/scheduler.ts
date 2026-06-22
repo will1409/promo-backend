@@ -55,6 +55,8 @@ export const startScheduler = () => {
         .where('status', '==', 'pending')
         .get();
 
+      console.log(`[scheduler] Agendamentos pendentes no Firestore: ${scheduledSnapshot.size}`);
+
       if (!scheduledSnapshot.empty) {
         const pendingDocs = scheduledSnapshot.docs.filter(doc => doc.data().scheduledFor <= now);
 
@@ -167,7 +169,13 @@ export const startScheduler = () => {
         .where('status', '==', 'active')
         .get();
 
+      console.log(`[scheduler] Campanhas ativas no Firestore: ${campaignsSnapshot.size}`);
       if (!campaignsSnapshot.empty) {
+        campaignsSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          console.log(`[scheduler] Campanha "${data.name}" (${doc.id}): nextRunAt=${data.nextRunAt}, now=${now}, nextRunAt <= now is: ${data.nextRunAt <= now}`);
+        });
+
         const activeCampaigns = campaignsSnapshot.docs.filter(doc => doc.data().nextRunAt <= now);
         
         for (const doc of activeCampaigns) {
