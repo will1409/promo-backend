@@ -31,4 +31,5 @@ if (!admin.apps.length) {
 }
 
 export const db = admin.firestore();
+db.settings({ preferRest: true });
 export const auth = admin.auth();
