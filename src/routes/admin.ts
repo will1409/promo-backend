@@ -131,4 +131,15 @@ router.get('/wa-sessions', async (_req: Request, res: Response) => {
   }
 });
 
+router.get('/debug-channels/:userId', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const channelsSnap = await db.collection('users').doc(userId).collection('channels').get();
+    const channels = channelsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json({ success: true, channels });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
