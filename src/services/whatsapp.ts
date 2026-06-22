@@ -1,5 +1,7 @@
 import makeWASocket, { DisconnectReason, useMultiFileAuthState, Browsers, isJidGroup } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
+import http from 'http';
+import https from 'https';
 import QRCode from 'qrcode';
 import pino from 'pino';
 import { useFirestoreAuthState } from './whatsappAdapter';
@@ -126,20 +128,52 @@ const forceResetSession = async (userId: string): Promise<void> => {
   await startWhatsAppSession(userId);
 };
 
-async function fetchImageBufferWithTimeout(url: string, timeoutMs: number = 8000): Promise<Buffer | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (!response.ok) return null;
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-  } catch (e: any) {
-    clearTimeout(timeoutId);
-    console.error(`[WhatsApp] Erro ao baixar imagem da URL ${url}:`, e.message || e);
-    return null;
-  }
+function fetchImageBufferWithTimeout(url: string, timeoutMs: number = 8000): Promise<Buffer | null> {
+  return new Promise((resolve) => {
+    let resolved = false;
+    
+    // Configura o timeout da requisição
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        console.error(`[WhatsApp] Timeout de ${timeoutMs}ms ao baixar imagem da URL ${url}`);
+        req.destroy();
+        resolve(null);
+      }
+    }, timeoutMs);
+
+    const client = url.startsWith('https') ? https : http;
+    const req = client.get(url, (res) => {
+      if (res.statusCode !== 200) {
+        clearTimeout(timeoutId);
+        resolved = true;
+        resolve(null);
+        return;
+      }
+      
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk) => {
+        chunks.push(chunk);
+      });
+      
+      res.on('end', () => {
+        clearTimeout(timeoutId);
+        if (!resolved) {
+          resolved = true;
+          resolve(Buffer.concat(chunks));
+        }
+      });
+    });
+    
+    req.on('error', (err) => {
+      clearTimeout(timeoutId);
+      if (!resolved) {
+        resolved = true;
+        console.error(`[WhatsApp] Erro ao baixar imagem da URL ${url}:`, err.message || err);
+        resolve(null);
+      }
+    });
+  });
 }
 
 export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string) => {
