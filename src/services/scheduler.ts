@@ -179,7 +179,9 @@ export const startScheduler = () => {
             continue;
           }
  
-          const linkUrl = links[currentIndex];
+          // Sanitiza o link: se vier com TAB ou espaço duplo (dois links colados), usa só o primeiro URL válido
+          const rawLink = links[currentIndex];
+          const linkUrl = (rawLink || '').split(/\t|\s{2,}/).map((s: string) => s.trim()).filter((s: string) => s.startsWith('http'))[0] || rawLink;
           console.log(`🚀 Processando link da campanha [${name}]: ${linkUrl}`);
 
           try {
@@ -370,16 +372,20 @@ export const startScheduler = () => {
 
           } catch (e: any) {
             console.error(`❌ Erro ao processar link da campanha ${doc.id}:`, e.message);
-            // On error, skip to next link to avoid getting stuck
+            // Sempre avança índice e atualiza nextRunAt para não travar a campanha
             const nextIndex = currentIndex + 1;
             const newStatus = nextIndex >= links.length ? 'finished' : 'active';
             const safeInterval = Number(intervalMinutes) || 60;
             const nextRunDate = new Date(Date.now() + safeInterval * 60000).toISOString();
-            await doc.ref.update({
-              currentIndex: nextIndex,
-              status: newStatus,
-              nextRunAt: nextRunDate
-            });
+            try {
+              await doc.ref.update({
+                currentIndex: nextIndex,
+                status: newStatus,
+                nextRunAt: nextRunDate
+              });
+            } catch (updateErr: any) {
+              console.error(`❌ Erro ao atualizar campanha ${doc.id} após falha:`, updateErr.message);
+            }
           }
         }
       }
