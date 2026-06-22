@@ -1,6 +1,34 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+
+// Buffer global para logs em memória para debug em produção
+export const systemLogs: string[] = [];
+const originalLog = console.log;
+const originalWarn = console.warn;
+const originalError = console.error;
+
+console.log = (...args) => {
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  systemLogs.push(`[${new Date().toISOString()}] [LOG] ${msg}`);
+  if (systemLogs.length > 1000) systemLogs.shift();
+  originalLog(...args);
+};
+
+console.warn = (...args) => {
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  systemLogs.push(`[${new Date().toISOString()}] [WARN] ${msg}`);
+  if (systemLogs.length > 1000) systemLogs.shift();
+  originalWarn(...args);
+};
+
+console.error = (...args) => {
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  systemLogs.push(`[${new Date().toISOString()}] [ERROR] ${msg}`);
+  if (systemLogs.length > 1000) systemLogs.shift();
+  originalError(...args);
+};
+
 import offersRouter from './routes/offers';
 import chatRouter from './routes/chat';
 import creativesRouter from './routes/creatives';
@@ -148,6 +176,14 @@ app.get('/api/health/whatsapp-logs', (_req, res) => {
   try {
     const { connectionLogs } = require('./services/whatsapp');
     res.json({ success: true, logs: connectionLogs });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/health/logs', (_req, res) => {
+  try {
+    res.json({ success: true, logs: systemLogs });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
