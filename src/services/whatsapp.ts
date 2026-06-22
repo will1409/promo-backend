@@ -108,30 +108,57 @@ export const logoutWhatsApp = async (userId: string) => {
   }
 };
 
-export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string) => {
-  let session = sessions[userId];
+/**
+ * Força reset completo da sessão (destrói socket atual e recria do zero).
+ * Usado quando a sessão fica presa em 'connecting' por muito tempo.
+ */
+const forceResetSession = async (userId: string): Promise<void> => {
+  console.log(`[WhatsApp] Forçando reset de sessão travada para ${userId}...`);
+  try {
+    const old = sessions[userId];
+    if (old) {
+      try { old.socket.end(new Error('force-reset')); } catch (_) {}
+    }
+    delete sessions[userId];
+  } catch (e) {
+    console.error(`[WhatsApp] Erro ao destruir socket antigo para ${userId}:`, e);
+  }
+  await startWhatsAppSession(userId);
+};
 
-  // Se não existe sessão na memória OU está desconectada/reconectando, tenta iniciar/reconectar
-  if (!session || session.status === 'disconnected') {
-    console.log(`[WhatsApp] Sessão não encontrada ou desconectada para ${userId}, tentando iniciar...`);
-    session = await startWhatsAppSession(userId);
+export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string) => {
+  // Garante que a sessão existe e não está desconectada
+  if (!sessions[userId] || sessions[userId].status === 'disconnected') {
+    console.log(`[WhatsApp] Sessão ausente/desconectada para ${userId}, iniciando...`);
+    await startWhatsAppSession(userId);
   }
 
-  // Aguarda a conexão se ainda estiver em processo (connecting / qr)
+  // Aguarda a conexão — com detecção de sessão travada em 'connecting'
   if ((sessions[userId] as WhatsAppSession).status !== 'connected') {
-    console.log(`[WhatsApp] Aguardando conexão para ${userId} (status atual: ${sessions[userId]?.status})...`);
+    console.log(`[WhatsApp] Aguardando conexão para ${userId} (status: ${sessions[userId]?.status})...`);
+    
     let retries = 0;
-    while ((sessions[userId] as WhatsAppSession).status !== 'connected' && retries < 30) {
+    const MAX_WAIT = 30; // segundos totais
+    const FORCE_RESET_AT = 20; // se ainda 'connecting' após 20s, força reset
+
+    while ((sessions[userId] as WhatsAppSession).status !== 'connected' && retries < MAX_WAIT) {
+      // Se ficou 20s em 'connecting' sem chegar em 'open', o socket travou — força reset
+      if (retries === FORCE_RESET_AT && (sessions[userId] as WhatsAppSession).status === 'connecting') {
+        console.log(`[WhatsApp] Sessão travada em 'connecting' para ${userId}. Forçando reset...`);
+        await forceResetSession(userId);
+      }
       await new Promise(r => setTimeout(r, 1000));
       retries++;
     }
 
     if ((sessions[userId] as WhatsAppSession).status !== 'connected') {
-      throw new Error(`WhatsApp não pôde ser conectado para o usuário ${userId}. Status: ${sessions[userId]?.status}`);
+      throw new Error(`WhatsApp não pôde ser conectado para o usuário ${userId}. Status final: ${sessions[userId]?.status}`);
     }
   }
 
-  // Ensure targetId format is correct (JID)
+  const session = sessions[userId];
+
+  // Garante formato JID correto
   const jid = targetId.includes('@') ? targetId : `${targetId}@g.us`;
   
   if (imageUrl) {
@@ -164,3 +191,30 @@ export const getWhatsAppGroups = async (userId: string) => {
   }
 };
 
+/**
+ * Pré-carrega sessões WhatsApp de todos os usuários com credenciais salvas.
+ * Chamado ao iniciar o servidor para evitar cold-start no primeiro envio.
+ */
+export const autoReconnectAllSessions = async (): Promise<void> => {
+  try {
+    console.log('[WhatsApp] Verificando sessões ativas para auto-reconexão...');
+    const usersSnap = await db.collection('users').get();
+    let count = 0;
+    for (const userDoc of usersSnap.docs) {
+      const userId = userDoc.id;
+      try {
+        const credsSnap = await db.collection('users').doc(userId).collection('whatsapp_auth').doc('creds').get();
+        if (credsSnap.exists) {
+          console.log(`[WhatsApp] Auto-iniciando sessão para userId: ${userId}`);
+          startWhatsAppSession(userId).catch(e => console.error(`[WhatsApp] Falha ao auto-iniciar sessão para ${userId}:`, e));
+          count++;
+        }
+      } catch (e) {
+        // Ignora erros por usuário individual
+      }
+    }
+    console.log(`[WhatsApp] Auto-reconexão iniciada para ${count} usuário(s).`);
+  } catch (e) {
+    console.error('[WhatsApp] Erro no autoReconnectAllSessions:', e);
+  }
+};

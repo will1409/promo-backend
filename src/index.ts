@@ -9,6 +9,7 @@ import { channelsRouter } from './routes/channels';
 import { whatsappRouter } from './routes/whatsapp';
 import campaignsRouter from './routes/campaigns';
 import { startScheduler } from './services/scheduler';
+import { autoReconnectAllSessions } from './services/whatsapp';
 
 dotenv.config();
 
@@ -17,6 +18,12 @@ const port = process.env.PORT || 3001;
 
 // Inicia o Scheduler
 startScheduler();
+
+// Pré-carrega sessões WhatsApp de todos os usuários com credenciais salvas
+// (evita cold-start: sessão travada em 'connecting' no primeiro envio do cron)
+setTimeout(() => {
+  autoReconnectAllSessions().catch(e => console.error('[WhatsApp] Erro no auto-reconnect inicial:', e));
+}, 5000); // aguarda 5s para o Firestore estar pronto
 
 // Middlewares
 app.use(cors({
