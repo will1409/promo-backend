@@ -57,11 +57,43 @@ export const startScheduler = () => {
 
       if (!scheduledSnapshot.empty) {
         const pendingDocs = scheduledSnapshot.docs.filter(doc => doc.data().scheduledFor <= now);
-        
-        for (const doc of pendingDocs) {
+
+        // Separa: ofertas no horário exato vs. ofertas atrasadas (mais de 2min de atraso)
+        const twoMinutesAgo = new Date(Date.now() - 2 * 60000).toISOString();
+        const onTime = pendingDocs.filter(doc => doc.data().scheduledFor > twoMinutesAgo);
+        const overdue = pendingDocs
+          .filter(doc => doc.data().scheduledFor <= twoMinutesAgo)
+          .sort((a, b) => a.data().scheduledFor.localeCompare(b.data().scheduledFor)); // mais antiga primeiro
+
+        // Processa ofertas no horário: todas de uma vez
+        const docsToProcess = [...onTime];
+
+        // Processa atrasadas: apenas 1 por vez (intervalo de 1 min = próximo tick do cron)
+        if (overdue.length > 0) {
+          docsToProcess.push(overdue[0]);
+          if (overdue.length > 1) {
+            console.log(`⏳ Fila de reenvio: ${overdue.length - 1} pendência(s) atrasada(s) aguardando próximos ciclos.`);
+          }
+        }
+
+        const MAX_RETRIES = 5;
+
+        for (const doc of docsToProcess) {
           const schedule = doc.data();
           const { userId, messageText, targetChannels } = schedule;
+          const retryCount: number = schedule.retryCount || 0;
           let sentCount = 0;
+
+          // Verifica se excedeu o máximo de tentativas
+          if (retryCount >= MAX_RETRIES) {
+            await doc.ref.update({
+              status: 'failed_permanently',
+              failedAt: new Date().toISOString(),
+              failReason: `Máximo de ${MAX_RETRIES} tentativas atingido sem sucesso.`
+            });
+            console.warn(`❌ Agendamento ${doc.id} marcado como falha permanente após ${retryCount} tentativas.`);
+            continue;
+          }
 
           for (const channel of targetChannels) {
             let channelData: FirebaseFirestore.DocumentData | undefined;
@@ -106,12 +138,25 @@ export const startScheduler = () => {
             }
           }
 
-          await doc.ref.update({
-            status: 'sent',
-            sentAt: new Date().toISOString(),
-            sentCount
-          });
-          console.log(`✅ Agendamento ${doc.id} concluído. (${sentCount} disparos)`);
+          if (sentCount > 0) {
+            // Sucesso (total ou parcial) → marca como enviado
+            await doc.ref.update({
+              status: 'sent',
+              sentAt: new Date().toISOString(),
+              sentCount
+            });
+            console.log(`✅ Agendamento ${doc.id} concluído. (${sentCount} disparos)`);
+          } else {
+            // Falha total → reenfileira para daqui 1 minuto
+            const nextRetryAt = new Date(Date.now() + 60000).toISOString();
+            const nextRetryCount = retryCount + 1;
+            await doc.ref.update({
+              scheduledFor: nextRetryAt,
+              retryCount: nextRetryCount,
+              lastRetryAt: new Date().toISOString()
+            });
+            console.warn(`⚠️ Agendamento ${doc.id} falhou (tentativa ${nextRetryCount}/${MAX_RETRIES}). Próximo reenvio em 1 minuto: ${nextRetryAt}`);
+          }
         }
       }
 
