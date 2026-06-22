@@ -372,11 +372,13 @@ export const startScheduler = () => {
             const safeInterval = Number(intervalMinutes) || 60;
             const nextRunDate = new Date(Date.now() + safeInterval * 60000).toISOString();
 
+            console.log(`[scheduler] Atualizando campanha ${doc.id} (sucesso) no Firestore: currentIndex=${nextIndex}, status=${newStatus}, nextRunAt=${nextRunDate}`);
             await doc.ref.update({
               currentIndex: nextIndex,
               status: newStatus,
               nextRunAt: nextRunDate
             });
+            console.log(`[scheduler] Campanha ${doc.id} atualizada com sucesso no Firestore!`);
 
           } catch (e: any) {
             console.error(`❌ Erro ao processar link da campanha ${doc.id}:`, e.message);
@@ -386,11 +388,13 @@ export const startScheduler = () => {
             const safeInterval = Number(intervalMinutes) || 60;
             const nextRunDate = new Date(Date.now() + safeInterval * 60000).toISOString();
             try {
+              console.log(`[scheduler] Atualizando campanha ${doc.id} (erro) no Firestore: currentIndex=${nextIndex}, status=${newStatus}, nextRunAt=${nextRunDate}`);
               await doc.ref.update({
                 currentIndex: nextIndex,
                 status: newStatus,
                 nextRunAt: nextRunDate
               });
+              console.log(`[scheduler] Campanha ${doc.id} (erro fallback) atualizada com sucesso no Firestore!`);
             } catch (updateErr: any) {
               console.error(`❌ Erro ao atualizar campanha ${doc.id} após falha:`, updateErr.message);
             }
