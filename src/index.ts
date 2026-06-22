@@ -10,6 +10,7 @@ import { whatsappRouter } from './routes/whatsapp';
 import campaignsRouter from './routes/campaigns';
 import { startScheduler } from './services/scheduler';
 import { autoReconnectAllSessions } from './services/whatsapp';
+import adminRouter from './routes/admin';
 
 dotenv.config();
 
@@ -160,6 +161,7 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/channels', channelsRouter);
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/esteiras', campaignsRouter);
+app.use('/api/admin', adminRouter);
 
 
 
