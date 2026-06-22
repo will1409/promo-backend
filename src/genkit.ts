@@ -71,7 +71,7 @@ Responda usando a estrutura fornecida.`;
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       messages: [
         { role: 'system', content: 'Você é um assistente de marketing que sempre responde estritamente com um objeto JSON válido correspondendo ao esquema solicitado.' },
         { role: 'user', content: prompt + '\nRetorne no formato JSON com as seguintes chaves: title (string), description (string), whatsapp (string), telegram (string), instagram (string).' }
@@ -161,7 +161,7 @@ export const chatFlow = ai.defineFlow({
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       messages: [
         { role: 'user', content: promptText }
       ],
@@ -231,7 +231,7 @@ REGRA CRÍTICA:
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.1-8b-instant',
       messages: [
         { role: 'user', content: prompt }
       ],
