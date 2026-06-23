@@ -43,8 +43,15 @@ function extractItemIdFromUrl(url: string): string {
 export const startScheduler = () => {
   console.log('⏳ Iniciando CronJob de Agendamentos e Campanhas...');
   
+  let isRunning = false;
+
   // Roda a cada 1 minuto
   cron.schedule('* * * * *', async () => {
+    if (isRunning) {
+      console.log('⏳ CronJob anterior ainda está rodando. Pulando este ciclo para evitar sobrecarga...');
+      return;
+    }
+    isRunning = true;
     try {
       const now = new Date().toISOString();
 
@@ -404,6 +411,8 @@ export const startScheduler = () => {
 
     } catch (error) {
       console.error('Erro no cron scheduler:', error);
+    } finally {
+      isRunning = false;
     }
   });
 };
