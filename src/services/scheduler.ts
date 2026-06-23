@@ -218,35 +218,11 @@ export const startScheduler = () => {
               keyword = finalUrl;
             }
 
-            // --- CAMADA 1: CACHE NO FIREBASE ---
-            const cacheKey = keyword ? keyword.replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 100) : null;
             let productTitle = keyword || 'Oferta Especial';
             let productPrice = '';
             let productImageUrl = '';
-            let cacheHit = false;
 
-            if (cacheKey) {
-              try {
-                const cacheDoc = await db.collection('productsCache').doc(cacheKey).get();
-                if (cacheDoc.exists) {
-                  const cachedData = cacheDoc.data();
-                  // Verifica se o cache é de hoje (menos de 24h)
-                  const cacheAgeHours = (Date.now() - (cachedData?.timestamp || 0)) / (1000 * 60 * 60);
-                  if (cacheAgeHours < 24) {
-                    console.log('📦 Retornado do Cache do Firebase para Campanha:', cacheKey);
-                    productTitle = cachedData?.productName || productTitle;
-                    productPrice = cachedData?.price || '';
-                    productImageUrl = cachedData?.imageUrl || '';
-                    cacheHit = true;
-                  }
-                }
-              } catch (err) {
-                console.error('Erro ao ler cache do Firebase:', err);
-              }
-            }
-
-            if (!cacheHit) {
-              // --- CAMADA 1.5: CONSULTA DIRETA POR ITEM ID NA API OFICIAL (Bypassa Playwright se funcionar) ---
+            // --- CAMADA 1.5: CONSULTA DIRETA POR ITEM ID NA API OFICIAL (Bypassa Playwright se funcionar) ---
               const itemId = extractItemIdFromUrl(finalUrl);
               if (itemId && (finalUrl.includes('shopee') || linkUrl.includes('shopee'))) {
                 console.log(`[campanhas] Item ID detectado: ${itemId}. Consultando API Oficial diretamente...`);
@@ -290,21 +266,6 @@ export const startScheduler = () => {
                   console.log(`[campanhas] Sucesso via API Oficial usando título raspado! Preço: ${productPrice}`);
                 }
               }
-
-              // --- CAMADA 4: SALVAR NO CACHE ---
-              if (cacheKey && productPrice && productImageUrl) {
-                try {
-                  await db.collection('productsCache').doc(cacheKey).set({
-                    productName: productTitle,
-                    price: productPrice,
-                    imageUrl: productImageUrl,
-                    timestamp: Date.now()
-                  });
-                } catch (err) {
-                  console.error('Erro ao salvar no cache do Firebase:', err);
-                }
-              }
-            }
 
             const imageUrl = productImageUrl || null;
 

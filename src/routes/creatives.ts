@@ -64,34 +64,7 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
       keyword = finalUrl;
     }
 
-    // --- CAMADA 1: CACHE NO FIREBASE ---
-    const cacheKey = keyword ? keyword.replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 100) : null;
-    if (cacheKey) {
-      try {
-        const cacheDoc = await db.collection('productsCache').doc(cacheKey).get();
-        if (cacheDoc.exists) {
-          const cachedData = cacheDoc.data();
-          // Verifica se o cache é de hoje (menos de 24h)
-          const cacheAgeHours = (Date.now() - (cachedData?.timestamp || 0)) / (1000 * 60 * 60);
-          if (cacheAgeHours < 24) {
-            console.log('📦 Retornado do Cache do Firebase:', cacheKey);
-            return res.json({ 
-              success: true, 
-              data: { 
-                productName: cachedData?.productName, 
-                description: "Oferta Especial Shopee!", 
-                price: cachedData?.price, 
-                oldPrice: "", 
-                imageUrl: cachedData?.imageUrl,
-                finalUrl: finalUrl
-              } 
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Erro ao ler cache do Firebase:', err);
-      }
-    }
+    // Cache removido para economizar cota do Firestore
 
     let productTitle = keyword || 'Oferta Especial';
     let productPrice = '';
@@ -148,19 +121,7 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
       console.log('[creatives] Não foi possível extrair preço/imagem. Retornando dados parciais.');
     }
 
-    // --- CAMADA 4: SALVAR NO CACHE ---
-    if (cacheKey && productPrice && productImageUrl) {
-      try {
-        await db.collection('productsCache').doc(cacheKey).set({
-          productName: productTitle,
-          price: productPrice,
-          imageUrl: productImageUrl,
-          timestamp: Date.now()
-        });
-      } catch (err) {
-        console.error('Erro ao salvar no cache do Firebase:', err);
-      }
-    }
+    // Salvamento no cache removido
 
     // Retorno de sucesso (direto pra tela)
     return res.json({ 
