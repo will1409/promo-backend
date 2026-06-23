@@ -147,24 +147,28 @@ export const startScheduler = () => {
             }
           }
 
-          if (sentCount > 0) {
-            // Sucesso (total ou parcial) → marca como enviado
-            await doc.ref.update({
-              status: 'sent',
-              sentAt: new Date().toISOString(),
-              sentCount
-            });
-            console.log(`✅ Agendamento ${doc.id} concluído. (${sentCount} disparos)`);
-          } else {
-            // Falha total → reenfileira para daqui 1 minuto
-            const nextRetryAt = new Date(Date.now() + 60000).toISOString();
-            const nextRetryCount = retryCount + 1;
-            await doc.ref.update({
-              scheduledFor: nextRetryAt,
-              retryCount: nextRetryCount,
-              lastRetryAt: new Date().toISOString()
-            });
-            console.warn(`⚠️ Agendamento ${doc.id} falhou (tentativa ${nextRetryCount}/${MAX_RETRIES}). Próximo reenvio em 1 minuto: ${nextRetryAt}`);
+          try {
+            if (sentCount > 0) {
+              // Sucesso (total ou parcial) → marca como enviado
+              await doc.ref.update({
+                status: 'sent',
+                sentAt: new Date().toISOString(),
+                sentCount
+              });
+              console.log(`✅ Agendamento ${doc.id} concluído. (${sentCount} disparos)`);
+            } else {
+              // Falha total → reenfileira para daqui 1 minuto
+              const nextRetryAt = new Date(Date.now() + 60000).toISOString();
+              const nextRetryCount = retryCount + 1;
+              await doc.ref.update({
+                scheduledFor: nextRetryAt,
+                retryCount: nextRetryCount,
+                lastRetryAt: new Date().toISOString()
+              });
+              console.warn(`⚠️ Agendamento ${doc.id} falhou (tentativa ${nextRetryCount}/${MAX_RETRIES}). Próximo reenvio em 1 minuto: ${nextRetryAt}`);
+            }
+          } catch (updateErr: any) {
+            console.error(`Erro crítico ao atualizar status do agendamento ${doc.id} no Firestore:`, updateErr.message || updateErr);
           }
         }
       }
