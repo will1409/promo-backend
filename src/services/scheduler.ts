@@ -313,24 +313,18 @@ export const startScheduler = () => {
             else if (linkUrl.includes('shopee') || linkUrl.includes('shp')) platform = 'shopee';
             else if (linkUrl.includes('mercadolivre') || linkUrl.includes('meli')) platform = 'mercadolivre';
 
-            // 3. Gerar textos de oferta usando IA
-            console.log(`Gerando IA para: ${productTitle}`);
-            const aiOffer = await generateOfferFlow({
-              productName: productTitle,
-              currentPrice: productPrice || 'Confira no site',
-              oldPrice: '',
-              category: '',
-              platform,
-              affiliateLink: linkUrl
-            });
+            // 3. Montar texto da oferta usando o template
+            console.log(`Montando oferta manual para: ${productTitle}`);
+            
+            const templateText = campaign.template || '🔥 CONFIRA ESTA OFERTA! 🔥\n\n📦 {nome}\n💵 Apenas {preco}\n\n🛒 Compre aqui: {link}';
+            let msgContent = templateText
+              .replace(/{nome}/g, productTitle || 'Oferta Especial')
+              .replace(/{preco}/g, productPrice || 'Confira no site')
+              .replace(/{link}/g, linkUrl);
 
             // 4. Enviar para os canais
             let sentCount = 0;
             for (const channel of targetChannels) {
-              let msgContent = `Confira esta oferta: ${linkUrl}`;
-              if (channel.type === 'whatsapp') msgContent = aiOffer.whatsapp;
-              else if (channel.type === 'telegram') msgContent = aiOffer.telegram;
-              else if (channel.type === 'instagram') msgContent = aiOffer.instagram;
               
               let channelData: FirebaseFirestore.DocumentData | undefined;
               try {

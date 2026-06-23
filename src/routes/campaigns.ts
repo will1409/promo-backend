@@ -7,7 +7,7 @@ const router = Router();
 // POST /api/campaigns/create
 router.post('/create', async (req: Request, res: Response) => {
   try {
-    const { userId, name, links, targetChannels, intervalMinutes } = req.body;
+    const { userId, name, links, targetChannels, intervalMinutes, template } = req.body;
     
     if (!userId || !name || !links || !Array.isArray(links) || links.length === 0 || !targetChannels || !intervalMinutes) {
       return res.status(400).json({ error: 'Faltam campos obrigatórios' });
@@ -23,6 +23,7 @@ router.post('/create', async (req: Request, res: Response) => {
       links,
       targetChannels,
       intervalMinutes,
+      template: template || '🔥 CONFIRA ESTA OFERTA! 🔥\n\n📦 {nome}\n💵 Apenas {preco}\n\n🛒 Compre aqui: {link}',
       currentIndex: 0,
       status: 'active',
       nextRunAt: new Date(Date.now() + intervalMinutes * 60000).toISOString(),
