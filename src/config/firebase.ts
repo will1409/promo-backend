@@ -33,5 +33,4 @@ if (!admin.apps.length) {
 }
 
 export const db = admin.firestore();
-db.settings({ preferRest: true, ignoreUndefinedProperties: true });
 export const auth = admin.auth();
