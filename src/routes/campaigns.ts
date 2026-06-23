@@ -13,6 +13,10 @@ router.post('/create', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Faltam campos obrigatórios' });
     }
 
+    if (links.length > 5) {
+      return res.status(400).json({ error: 'O limite máximo é de 5 links por campanha.' });
+    }
+
     const docRef = await db.collection('campaigns').add({
       userId,
       name,
