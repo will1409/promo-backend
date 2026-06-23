@@ -281,9 +281,9 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
     console.error(`[WhatsApp] Erro ao enviar mensagem de texto para ${jid}:`, err.message || err);
     throw err; // Repassa o erro para que o scheduler trate e não trave a esteira
   } finally {
-    // Adiciona um delay aleatório entre 3s e 6s após QUALQUER tentativa de envio (com ou sem sucesso)
+    // Adiciona um delay aleatório entre 8s e 15s após QUALQUER tentativa de envio (com ou sem sucesso)
     // para evitar que o WhatsApp/Baileys silenciosamente descarte mensagens enviadas muito rápido
-    const delayMs = Math.floor(Math.random() * 3000) + 3000;
+    const delayMs = Math.floor(Math.random() * 7000) + 8000;
     console.log(`[WhatsApp] Aguardando ${delayMs}ms antes do próximo envio...`);
     await new Promise(r => setTimeout(r, delayMs));
   }
