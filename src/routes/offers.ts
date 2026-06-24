@@ -21,7 +21,6 @@ router.post('/generate', async (req: Request, res: Response) => {
     if (userId) {
       try {
         await db.collection('offers').add({
-          userId,
           ...input,
           ...generated,
           clicks: 0,

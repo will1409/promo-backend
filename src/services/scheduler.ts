@@ -1,7 +1,6 @@
 import cron from 'node-cron';
 import { db } from '../config/firebase';
 import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer } from './scraper';
-import { generateCreativeFlow, generateOfferFlow } from '../genkit';
 import { sendMessageHelper } from './sender';
 
 function extractKeywordFromUrl(url: string): string {
