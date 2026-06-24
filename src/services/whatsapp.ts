@@ -4,7 +4,6 @@ import http from 'http';
 import https from 'https';
 import QRCode from 'qrcode';
 import pino from 'pino';
-import { useFirestoreAuthState } from './whatsappAdapter';
 
 interface WhatsAppSession {
   socket: ReturnType<typeof makeWASocket>;
@@ -23,7 +22,8 @@ export const startWhatsAppSession = async (userId: string) => {
 
   console.log(`Starting WhatsApp session for user ${userId}`);
   
-  const { state, saveCreds } = await useFirestoreAuthState(userId);
+  const authDir = `./whatsapp_sessions/${userId}`;
+  const { state, saveCreds } = await useMultiFileAuthState(authDir);
 
   const socket = makeWASocket({
     auth: state,
@@ -88,8 +88,8 @@ export const getWhatsAppStatus = async (userId: string) => {
   const session = sessions[userId];
   if (!session) {
     try {
-      const credsSnap = await db.collection('users').doc(userId).collection('whatsapp_auth').doc('creds').get();
-      if (credsSnap.exists) {
+      const fs = require('fs');
+      if (fs.existsSync(`./whatsapp_sessions/${userId}/creds.json`)) {
         // Start session in background
         startWhatsAppSession(userId).catch(e => console.error('Failed to auto-start WA session', e));
         return { status: 'connecting', qr: null };
@@ -107,6 +107,11 @@ export const logoutWhatsApp = async (userId: string) => {
   if (session) {
     await session.socket.logout();
     delete sessions[userId];
+  }
+  const fs = require('fs');
+  const dir = `./whatsapp_sessions/${userId}`;
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 };
 
@@ -312,20 +317,20 @@ export const getWhatsAppGroups = async (userId: string) => {
  */
 export const autoReconnectAllSessions = async (): Promise<void> => {
   try {
-    console.log('[WhatsApp] Verificando sessões ativas para auto-reconexão...');
-    const usersSnap = await db.collection('users').get();
+    console.log('[WhatsApp] Verificando pastas locais para auto-reconexão...');
+    const fs = require('fs');
+    if (!fs.existsSync('./whatsapp_sessions')) {
+      console.log('[WhatsApp] Nenhuma sessão local encontrada (pasta whatsapp_sessions não existe).');
+      return;
+    }
+    
+    const usersDirs = fs.readdirSync('./whatsapp_sessions');
     let count = 0;
-    for (const userDoc of usersSnap.docs) {
-      const userId = userDoc.id;
-      try {
-        const credsSnap = await db.collection('users').doc(userId).collection('whatsapp_auth').doc('creds').get();
-        if (credsSnap.exists) {
-          console.log(`[WhatsApp] Auto-iniciando sessão para userId: ${userId}`);
-          startWhatsAppSession(userId).catch(e => console.error(`[WhatsApp] Falha ao auto-iniciar sessão para ${userId}:`, e));
-          count++;
-        }
-      } catch (e) {
-        // Ignora erros por usuário individual
+    for (const userId of usersDirs) {
+      if (fs.existsSync(`./whatsapp_sessions/${userId}/creds.json`)) {
+         console.log(`[WhatsApp] Auto-iniciando sessão para userId: ${userId}`);
+         startWhatsAppSession(userId).catch(e => console.error(`[WhatsApp] Falha ao auto-iniciar sessão para ${userId}:`, e));
+         count++;
       }
     }
     console.log(`[WhatsApp] Auto-reconexão iniciada para ${count} usuário(s).`);
