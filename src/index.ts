@@ -65,64 +65,22 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Health Check
-app.get('/api/health', async (_req, res) => {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-  let saStatus = 'Not provided';
-  if (serviceAccount) {
-    try {
-      JSON.parse(serviceAccount);
-      saStatus = 'Provided and valid JSON';
-    } catch (e) {
-      saStatus = 'Provided but INVALID JSON';
-    }
-  }
-
-  const geminiKey = process.env.GEMINI_API_KEY;
-  const groqKey = process.env.GROQ_API_KEY;
-
-  let groqConnectivity = 'Not tested';
+app.get('/api/health', async (req, res) => {
+  // Check Firebase Admin DB
+  const { db } = require('./config/firebase');
+  let dbStatus = 'Not tested';
   try {
-    const groqRes = await fetch('https://api.groq.com/openai/v1/models', {
-      headers: {
-        'Authorization': `Bearer ${groqKey || ''}`
-      }
-    });
-    const text = await groqRes.text();
-    groqConnectivity = `Status: ${groqRes.status} ${groqRes.statusText}, Body snippet: ${text.substring(0, 300)}`;
+    const snap = await db.collection('system_config').doc('health').get();
+    dbStatus = snap.exists ? 'Connected' : 'Connected (doc missing)';
   } catch (err: any) {
-    groqConnectivity = `Error: ${err.message || err}`;
+    dbStatus = `Error: ${err.message || err}`;
   }
 
-  let groqChatTest = 'Not tested';
-  try {
-    const chatRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${groqKey || ''}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [{ role: 'user', content: 'Say hello in one word.' }],
-        temperature: 0.7,
-        max_tokens: 10
-      })
-    });
-    const text = await chatRes.text();
-    groqChatTest = `Status: ${chatRes.status} ${chatRes.statusText}, Body: ${text.substring(0, 300)}`;
-  } catch (err: any) {
-    groqChatTest = `Error: ${err.message || err}`;
-  }
-
-  res.json({ 
-    status: 'ok', 
-    message: 'Pegue a Promo AI API running ✅',
-    nodeVersion: process.version,
-    firebaseServiceAccount: saStatus,
-    geminiKeyProvided: !!geminiKey,
-    groqKeyProvided: !!groqKey,
-    groqConnectivity,
-    groqChatTest
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    firebaseProvided: !!process.env.FIREBASE_PROJECT_ID,
+    firebaseStatus: dbStatus,
   });
 });
 

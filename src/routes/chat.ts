@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { chatFlow } from '../genkit';
+import { chatFlow } from '../services/openai';
 
 const router = Router();
 

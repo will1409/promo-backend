@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { generateOfferFlow } from '../genkit';
+import { generateOfferTexts } from '../services/openai';
 import { db } from '../config/firebase';
 
 const router = Router();
@@ -15,8 +15,22 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     const input = { productName, currentPrice, oldPrice, category, platform, affiliateLink, userId };
 
-    // Chama o fluxo do Genkit (ele já salva no banco de dados se tiver userId)
-    const generated = await generateOfferFlow(input);
+    // Chama o serviço do OpenAI
+    const generated = await generateOfferTexts(input);
+
+    if (userId) {
+      try {
+        await db.collection('offers').add({
+          userId,
+          ...input,
+          ...generated,
+          clicks: 0,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.error('Falha ao salvar no Firestore (possível falta de credenciais):', e);
+      }
+    }
 
     return res.json({ success: true, data: generated });
   } catch (error: any) {

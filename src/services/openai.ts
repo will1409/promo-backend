@@ -94,3 +94,28 @@ Responda APENAS em JSON com esta estrutura exata:
 
   return generatedData;
 }
+
+export interface ChatMessage {
+  role: 'user' | 'system' | 'assistant';
+  content: { text: string }[];
+}
+
+export async function chatFlow(messages: ChatMessage[]): Promise<string> {
+  let promptText = `Você é um assistente inteligente e amigável da plataforma Pegue a Promo (uma ferramenta para top afiliados que ajuda a gerar textos persuasivos, encurtar links e gerenciar ofertas). Responda sempre em português brasileiro, de forma direta, prestativa e use emojis.\n\nHistórico da Conversa:\n`;
+
+  messages.forEach((msg) => {
+    const roleName = msg.role === 'user' ? 'Usuário' : 'Assistente';
+    const textContent = msg.content && msg.content[0] ? msg.content[0].text : '';
+    promptText += `${roleName}: ${textContent}\n\n`;
+  });
+
+  promptText += `Assistente: `;
+
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: promptText }],
+    temperature: 0.7,
+  });
+
+  return completion.choices[0].message.content || '';
+}

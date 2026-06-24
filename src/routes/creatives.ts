@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { generateCreativeFlow } from '../genkit';
 import { db } from '../config/firebase';
 import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer } from '../services/scraper';
 
