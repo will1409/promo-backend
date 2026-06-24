@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { generateOfferTexts } from '../services/openai';
 import { db } from '../config/firebase';
 
 const router = Router();
@@ -15,8 +14,15 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     const input = { productName, currentPrice, oldPrice, category, platform, affiliateLink, userId };
 
-    // Chama o serviço do OpenAI
-    const generated = await generateOfferTexts(input);
+    // Gera texto padrão sem IA
+    const templateText = '🔥 CONFIRA ESTA OFERTA! 🔥\n\n📦 {nome}\n💵 Apenas {preco}\n\n🛒 Compre aqui: {link}';
+    const whatsapp = templateText
+      .replace(/{nome}/g, productName)
+      .replace(/{preco}/g, currentPrice)
+      .replace(/{link}/g, affiliateLink || '');
+    
+    const telegram = whatsapp;
+    const generated = { whatsapp, telegram };
 
     if (userId) {
       try {

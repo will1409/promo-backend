@@ -32,7 +32,6 @@ console.error = (...args) => {
 };
 
 import offersRouter from './routes/offers';
-import chatRouter from './routes/chat';
 import creativesRouter from './routes/creatives';
 import dashboardRouter from './routes/dashboard';
 import { channelsRouter } from './routes/channels';
@@ -153,7 +152,6 @@ app.get('/api/health/logs', (req, res) => {
 
 // Rotas
 app.use('/api/offers', offersRouter);
-app.use('/api/chat', chatRouter);
 app.use('/api/creatives', creativesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/channels', channelsRouter);
@@ -165,5 +163,4 @@ app.use('/api/admin', adminRouter);
 
 app.listen(port, () => {
   console.log(`✅ Server rodando na porta ${port}`);
-  console.log(`🔑 OpenAI Key: ${process.env.OPENAI_API_KEY ? 'Configurada ✅' : 'NÃO CONFIGURADA ❌'}`);
 });
