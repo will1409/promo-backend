@@ -57,6 +57,35 @@ export async function resolveRedirectPuppeteer(shortLink: string): Promise<strin
 }
 
 /**
+ * Faz uma requisição direta para a API Pública do Mercado Livre.
+ * Extremamente rápido e não sofre bloqueio de bot.
+ */
+export async function fetchMercadoLivreApi(url: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
+  try {
+    const match = url.match(/MLB-?(\d+)/i);
+    if (!match) return null;
+
+    const itemId = `MLB${match[1]}`;
+    console.log(`[scraper] Mercado Livre ID detectado: ${itemId}. Consultando API Pública...`);
+
+    const res = await fetch(`https://api.mercadolibre.com/items/${itemId}`);
+    if (!res.ok) return null;
+
+    const data: any = await res.json();
+    const formattedPrice = data.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    return {
+      title: data.title || '',
+      price: formattedPrice,
+      imageUrl: data.pictures && data.pictures.length > 0 ? data.pictures[0].url : data.thumbnail
+    };
+  } catch (e) {
+    console.error("[scraper] Erro ao consultar API do Mercado Livre:", e);
+    return null;
+  }
+}
+
+/**
  * 2. Faz uma chamada direta à API Oficial de Afiliados da Shopee.
  * Aceita tanto palavras-chave de texto quanto Item IDs numéricos.
  */
@@ -264,6 +293,52 @@ export async function scrapeProductPuppeteer(longUrl: string): Promise<{ title: 
     return null;
   } finally {
     if (browser) await browser.close();
+  }
+}
+
+/**
+ * 4. Fallback HTTP puro via Cheerio para Amazon (muitas vezes mais efetivo que Playwright por não rodar scripts de captcha tão rápido)
+ */
+export async function scrapeAmazonHttp(url: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
+  try {
+    const cheerio = require('cheerio');
+    console.log(`[scraper] Tentando extração HTTP básica para Amazon: ${url}`);
+    
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'max-age=0'
+      }
+    });
+    
+    if (!res.ok) return null;
+    
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    
+    let title = $('#productTitle').text().trim() || $('#title').text().trim();
+    let price = $('.a-price .a-offscreen').first().text().trim() || $('#priceblock_ourprice').text().trim() || $('#priceblock_dealprice').text().trim();
+    let imageUrl = $('#landingImage').attr('src') || $('#imgBlkFront').attr('src');
+    
+    if (!imageUrl) {
+      const dynamicImg = $('#landingImage').attr('data-a-dynamic-image');
+      if (dynamicImg) {
+        try {
+          const parsed = JSON.parse(dynamicImg);
+          const urls = Object.keys(parsed);
+          if (urls.length > 0) imageUrl = urls[0];
+        } catch(e){}
+      }
+    }
+    
+    if (title || price) {
+      return { title, price, imageUrl: imageUrl || '' };
+    }
+    return null;
+  } catch (e) {
+    return null;
   }
 }
 

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { db } from '../config/firebase';
-import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer } from '../services/scraper';
+import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer, fetchMercadoLivreApi, scrapeAmazonHttp } from '../services/scraper';
 
 const router = Router();
 
@@ -89,6 +89,25 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
         productTitle = officialData.title || productTitle;
         productPrice = officialData.price || productPrice;
         productImageUrl = officialData.imageUrl || productImageUrl;
+      }
+    }
+
+    // --- CAMADA 2.5: API PÚBLICA DO MERCADO LIVRE E CHEERIO AMAZON ---
+    if (!productPrice && (finalUrl.includes('mercadolivre') || linkUrl.includes('mercadolivre') || linkUrl.includes('meli'))) {
+      const mlData = await fetchMercadoLivreApi(finalUrl);
+      if (mlData) {
+        productTitle = mlData.title || productTitle;
+        productPrice = mlData.price || productPrice;
+        productImageUrl = mlData.imageUrl || productImageUrl;
+      }
+    }
+
+    if (!productPrice && (finalUrl.includes('amazon') || linkUrl.includes('amazon') || linkUrl.includes('amzn'))) {
+      const amzData = await scrapeAmazonHttp(finalUrl);
+      if (amzData) {
+        productTitle = amzData.title || productTitle;
+        productPrice = amzData.price || productPrice;
+        productImageUrl = amzData.imageUrl || productImageUrl;
       }
     }
 
