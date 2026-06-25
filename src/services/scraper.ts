@@ -89,9 +89,9 @@ export async function fetchMercadoLivreApi(url: string): Promise<{ title: string
  * 2. Faz uma chamada direta à API Oficial de Afiliados da Shopee.
  * Aceita tanto palavras-chave de texto quanto Item IDs numéricos.
  */
-export async function fetchShopeeOfficialApi(keyword: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
-  const appId = process.env.GLOBAL_SHOPEE_APP_ID || '18396940613';
-  const appSecret = process.env.GLOBAL_SHOPEE_APP_SECRET || 'AFCPGMWPPRO7YXODKDHHLJDVKBU3LTJ3';
+export async function fetchShopeeOfficialApi(keyword: string, userAppId?: string, userAppSecret?: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
+  const appId = userAppId || process.env.GLOBAL_SHOPEE_APP_ID || '18396940613';
+  const appSecret = userAppSecret || process.env.GLOBAL_SHOPEE_APP_SECRET || 'AFCPGMWPPRO7YXODKDHHLJDVKBU3LTJ3';
   if (!appId || !appSecret || !keyword) return null;
 
   try {

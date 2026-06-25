@@ -65,6 +65,22 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
 
     // Cache removido para economizar cota do Firestore
 
+    let shopeeAppId: string | undefined;
+    let shopeeAppSecret: string | undefined;
+
+    try {
+      if (userId) {
+        const integrationsDoc = await db.collection('users').doc(userId).collection('settings').doc('integrations').get();
+        if (integrationsDoc.exists) {
+          const integrations = integrationsDoc.data();
+          shopeeAppId = integrations?.shopeeAppId;
+          shopeeAppSecret = integrations?.shopeeAppSecret;
+        }
+      }
+    } catch (err) {
+      console.error('[creatives] Erro ao buscar integrações do usuário:', err);
+    }
+
     let productTitle = keyword || 'Oferta Especial';
     let productPrice = '';
     let productImageUrl = '';
@@ -73,7 +89,7 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
     const itemId = extractItemIdFromUrl(finalUrl);
     if (itemId && (finalUrl.includes('shopee') || linkUrl.includes('shopee'))) {
       console.log(`[creatives] Item ID detectado: ${itemId}. Consultando API Oficial diretamente...`);
-      const officialData = await fetchShopeeOfficialApi(itemId);
+      const officialData = await fetchShopeeOfficialApi(itemId, shopeeAppId, shopeeAppSecret);
       if (officialData) {
         productTitle = officialData.title || productTitle;
         productPrice = officialData.price || productPrice;
@@ -84,7 +100,7 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
 
     // --- CAMADA 2: API OFICIAL DA SHOPEE (Por Keyword da URL se a por ID falhar) ---
     if (!productPrice && keyword) {
-      const officialData = await fetchShopeeOfficialApi(keyword);
+      const officialData = await fetchShopeeOfficialApi(keyword, shopeeAppId, shopeeAppSecret);
       if (officialData) {
         productTitle = officialData.title || productTitle;
         productPrice = officialData.price || productPrice;
