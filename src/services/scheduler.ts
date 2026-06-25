@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { db } from '../config/firebase';
-import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer } from './scraper';
+import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer, fetchMercadoLivreApi, scrapeAmazonHttp, scrapeMercadoLivreHttp, fetchAmazonOfficialApi } from './scraper';
 import { sendMessageHelper } from './sender';
 
 function extractKeywordFromUrl(url: string): string {
@@ -206,6 +206,32 @@ export const startScheduler = () => {
             let finalUrl = linkUrl;
             let keyword = extractKeywordFromUrl(finalUrl);
 
+            let shopeeAppId: string | undefined;
+            let shopeeAppSecret: string | undefined;
+            let mercadoLivreAppId: string | undefined;
+            let mercadoLivreClientSecret: string | undefined;
+            let amazonAccessKey: string | undefined;
+            let amazonSecretKey: string | undefined;
+            let amazonPartnerTag: string | undefined;
+
+            try {
+              if (userId) {
+                const integrationsDoc = await db.collection('users').doc(userId).collection('settings').doc('integrations').get();
+                if (integrationsDoc.exists) {
+                  const integrations = integrationsDoc.data();
+                  shopeeAppId = integrations?.shopeeAppId;
+                  shopeeAppSecret = integrations?.shopeeAppSecret;
+                  mercadoLivreAppId = integrations?.mercadoLivreAppId;
+                  mercadoLivreClientSecret = integrations?.mercadoLivreClientSecret;
+                  amazonAccessKey = integrations?.amazonAccessKey;
+                  amazonSecretKey = integrations?.amazonSecretKey;
+                  amazonPartnerTag = integrations?.amazonPartnerTag;
+                }
+              }
+            } catch (err) {
+              console.error('[scheduler] Erro ao buscar integrações do usuário:', err);
+            }
+
             // 1. Resolução do Redirecionamento (Bypass de links curtos) - Qualquer plataforma (Shopee, Amazon, Mercado Livre, etc.)
             if (linkUrl && linkUrl.startsWith('http')) {
               finalUrl = await resolveRedirectPuppeteer(linkUrl);
@@ -221,11 +247,11 @@ export const startScheduler = () => {
             let productPrice = '';
             let productImageUrl = '';
 
-            // --- CAMADA 1.5: CONSULTA DIRETA POR ITEM ID NA API OFICIAL (Bypassa Playwright se funcionar) ---
+            // --- CAMADA 1.5: CONSULTA DIRETA POR ITEM ID NA API OFICIAL DA SHOPEE ---
               const itemId = extractItemIdFromUrl(finalUrl);
               if (itemId && (finalUrl.includes('shopee') || linkUrl.includes('shopee'))) {
                 console.log(`[campanhas] Item ID detectado: ${itemId}. Consultando API Oficial diretamente...`);
-                const officialData = await fetchShopeeOfficialApi(itemId);
+                const officialData = await fetchShopeeOfficialApi(itemId, shopeeAppId, shopeeAppSecret);
                 if (officialData) {
                   productTitle = officialData.title || productTitle;
                   productPrice = officialData.price || productPrice;
@@ -235,8 +261,8 @@ export const startScheduler = () => {
               }
 
               // --- CAMADA 2: API OFICIAL DA SHOPEE (Por Keyword da URL se a por ID falhar) ---
-              if (!productPrice && keyword) {
-                const officialData = await fetchShopeeOfficialApi(keyword);
+              if (!productPrice && keyword && (finalUrl.includes('shopee') || linkUrl.includes('shopee'))) {
+                const officialData = await fetchShopeeOfficialApi(keyword, shopeeAppId, shopeeAppSecret);
                 if (officialData) {
                   productTitle = officialData.title || productTitle;
                   productPrice = officialData.price || productPrice;
@@ -244,7 +270,45 @@ export const startScheduler = () => {
                 }
               }
 
-              // --- CAMADA 3: PLAYWRIGHT FALLBACK ---
+              // --- CAMADA 2.5: API OFICIAL DA AMAZON ---
+              if (!productPrice && (finalUrl.includes('amazon') || linkUrl.includes('amazon') || linkUrl.includes('amzn'))) {
+                const amzOfficialData = await fetchAmazonOfficialApi(keyword, amazonAccessKey, amazonSecretKey, amazonPartnerTag);
+                if (amzOfficialData) {
+                  productTitle = amzOfficialData.title || productTitle;
+                  productPrice = amzOfficialData.price || productPrice;
+                  productImageUrl = amzOfficialData.imageUrl || productImageUrl;
+                }
+              }
+
+              // --- CAMADA 3: API PÚBLICA DO MERCADO LIVRE E CHEERIO AMAZON ---
+              if (!productPrice && (finalUrl.includes('mercadolivre') || linkUrl.includes('mercadolivre') || linkUrl.includes('meli'))) {
+                const mlData = await fetchMercadoLivreApi(finalUrl, mercadoLivreAppId, mercadoLivreClientSecret);
+                if (mlData) {
+                  productTitle = mlData.title || productTitle;
+                  productPrice = mlData.price || productPrice;
+                  productImageUrl = mlData.imageUrl || productImageUrl;
+                }
+              }
+
+              if (!productPrice && (finalUrl.includes('amazon') || linkUrl.includes('amazon') || linkUrl.includes('amzn'))) {
+                const amzData = await scrapeAmazonHttp(finalUrl);
+                if (amzData) {
+                  productTitle = amzData.title || productTitle;
+                  productPrice = amzData.price || productPrice;
+                  productImageUrl = amzData.imageUrl || productImageUrl;
+                }
+              }
+
+              if (!productPrice && (finalUrl.includes('mercadolivre') || linkUrl.includes('mercadolivre') || linkUrl.includes('meli.la'))) {
+                const mlHttpData = await scrapeMercadoLivreHttp(finalUrl);
+                if (mlHttpData) {
+                  productTitle = mlHttpData.title || productTitle;
+                  productPrice = mlHttpData.price || productPrice;
+                  productImageUrl = mlHttpData.imageUrl || productImageUrl;
+                }
+              }
+
+              // --- CAMADA 4: PLAYWRIGHT FALLBACK ---
               if (!productPrice || !productImageUrl) {
                 const scrapedData = await scrapeProductPuppeteer(finalUrl);
                 if (scrapedData) {
