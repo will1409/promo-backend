@@ -164,26 +164,33 @@ export async function scrapeProductPuppeteer(longUrl: string): Promise<{ title: 
       let price = '';
       let imageUrl = '';
 
-      // Caso especial: Páginas de perfil/lista social do Mercado Livre (ex: /social/...)
-      const firstPolyCard = document.querySelector('.poly-card');
-      if (firstPolyCard) {
-        const titleEl = firstPolyCard.querySelector('.poly-component__title');
-        if (titleEl && titleEl.textContent) {
-          title = titleEl.textContent.trim();
-        }
+      let debugError = '';
+      try {
+        if (window.location.href.includes('/social/')) {
+          const ogTitle = document.querySelector('meta[property="og:title"]');
+          if (ogTitle) {
+            title = ogTitle.getAttribute('content') || '';
+          }
+          
+          const ogImage = document.querySelector('meta[property="og:image"]');
+          if (ogImage) {
+            imageUrl = ogImage.getAttribute('content') || '';
+          }
 
-        const imgEl = firstPolyCard.querySelector('img.poly-component__picture') || firstPolyCard.querySelector('img');
-        if (imgEl) {
-          imageUrl = (imgEl as HTMLImageElement).src || imgEl.getAttribute('src') || '';
+          // Para pegar o preço na página social
+          const priceContainer = document.querySelector('.andes-money-amount');
+          if (priceContainer) {
+            const fraction = priceContainer.querySelector('.andes-money-amount__fraction');
+            const cents = priceContainer.querySelector('.andes-money-amount__cents');
+            if (fraction) {
+              price = `R$ ${fraction.textContent}${cents ? ',' + cents.textContent : ''}`;
+            }
+          }
         }
-
-        const priceEls = Array.from(firstPolyCard.querySelectorAll('.andes-money-amount'));
-        const currentPriceEl = priceEls.length > 1 ? priceEls[1] : priceEls[0];
-        if (currentPriceEl && currentPriceEl.textContent) {
-          // Remove espaços indesejados de quebras de tags internas
-          price = currentPriceEl.textContent.trim().replace(/\s+/g, ' ').replace(/\s*,\s*/g, ',');
-        }
+      } catch (err: any) {
+        debugError = err.message || String(err);
       }
+
 
       // Pega título se ainda estiver vazio
       if (!title) {
@@ -283,7 +290,7 @@ export async function scrapeProductPuppeteer(longUrl: string): Promise<{ title: 
       return { title, price, imageUrl };
     });
 
-    if (productData.title || productData.price) {
+    if (productData.title || productData.price || productData.imageUrl) {
       return productData;
     }
     
