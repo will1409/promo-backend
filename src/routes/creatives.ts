@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { db } from '../config/firebase';
-import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer, fetchMercadoLivreApi, scrapeAmazonHttp } from '../services/scraper';
+import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer, fetchMercadoLivreApi, scrapeAmazonHttp, scrapeMercadoLivreHttp } from '../services/scraper';
 
 const router = Router();
 
@@ -108,6 +108,15 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
         productTitle = amzData.title || productTitle;
         productPrice = amzData.price || productPrice;
         productImageUrl = amzData.imageUrl || productImageUrl;
+      }
+    }
+
+    if (!productPrice && (finalUrl.includes('mercadolivre') || linkUrl.includes('mercadolivre') || linkUrl.includes('meli.la'))) {
+      const mlHttpData = await scrapeMercadoLivreHttp(finalUrl);
+      if (mlHttpData) {
+        productTitle = mlHttpData.title || productTitle;
+        productPrice = mlHttpData.price || productPrice;
+        productImageUrl = mlHttpData.imageUrl || productImageUrl;
       }
     }
 

@@ -349,6 +349,49 @@ export async function scrapeAmazonHttp(url: string): Promise<{ title: string, pr
   }
 }
 
+/**
+ * 5. Fallback HTTP puro via Cheerio para Mercado Livre (evita bloqueios de Puppeteer em IPs de VPS)
+ */
+export async function scrapeMercadoLivreHttp(url: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
+  try {
+    const cheerio = require('cheerio');
+    console.log(`[scraper] Tentando extração HTTP básica para Mercado Livre: ${url}`);
+    
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+      }
+    });
+    
+    if (!res.ok) return null;
+    
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    
+    let title = $('meta[property="og:title"]').attr('content') || '';
+    let imageUrl = $('meta[property="og:image"]').attr('content') || '';
+    let price = '';
+
+    const priceContainer = $('.andes-money-amount').first();
+    if (priceContainer.length > 0) {
+      const fraction = priceContainer.find('.andes-money-amount__fraction').text().trim();
+      const cents = priceContainer.find('.andes-money-amount__cents').text().trim();
+      if (fraction) {
+        price = `R$ ${fraction}${cents ? ',' + cents : ''}`;
+      }
+    }
+    
+    if (title || price || imageUrl) {
+      return { title, price, imageUrl };
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export async function fetchPageData(linkUrl: string, integrations: any) {
   return {
     finalUrl: linkUrl,
