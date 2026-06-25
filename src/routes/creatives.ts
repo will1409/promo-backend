@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { db } from '../config/firebase';
-import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer, fetchMercadoLivreApi, scrapeAmazonHttp, scrapeMercadoLivreHttp } from '../services/scraper';
+import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer, fetchMercadoLivreApi, scrapeAmazonHttp, scrapeMercadoLivreHttp, fetchAmazonOfficialApi } from '../services/scraper';
 
 const router = Router();
 
@@ -67,6 +67,11 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
 
     let shopeeAppId: string | undefined;
     let shopeeAppSecret: string | undefined;
+    let mercadoLivreAppId: string | undefined;
+    let mercadoLivreClientSecret: string | undefined;
+    let amazonAccessKey: string | undefined;
+    let amazonSecretKey: string | undefined;
+    let amazonPartnerTag: string | undefined;
 
     try {
       if (userId) {
@@ -75,6 +80,11 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
           const integrations = integrationsDoc.data();
           shopeeAppId = integrations?.shopeeAppId;
           shopeeAppSecret = integrations?.shopeeAppSecret;
+          mercadoLivreAppId = integrations?.mercadoLivreAppId;
+          mercadoLivreClientSecret = integrations?.mercadoLivreClientSecret;
+          amazonAccessKey = integrations?.amazonAccessKey;
+          amazonSecretKey = integrations?.amazonSecretKey;
+          amazonPartnerTag = integrations?.amazonPartnerTag;
         }
       }
     } catch (err) {
@@ -108,9 +118,19 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
       }
     }
 
-    // --- CAMADA 2.5: API PÚBLICA DO MERCADO LIVRE E CHEERIO AMAZON ---
+    // --- CAMADA 2.5: API OFICIAL DA AMAZON ---
+    if (!productPrice && (finalUrl.includes('amazon') || linkUrl.includes('amazon') || linkUrl.includes('amzn'))) {
+      const amzOfficialData = await fetchAmazonOfficialApi(keyword, amazonAccessKey, amazonSecretKey, amazonPartnerTag);
+      if (amzOfficialData) {
+        productTitle = amzOfficialData.title || productTitle;
+        productPrice = amzOfficialData.price || productPrice;
+        productImageUrl = amzOfficialData.imageUrl || productImageUrl;
+      }
+    }
+
+    // --- CAMADA 3: API PÚBLICA DO MERCADO LIVRE E CHEERIO AMAZON ---
     if (!productPrice && (finalUrl.includes('mercadolivre') || linkUrl.includes('mercadolivre') || linkUrl.includes('meli'))) {
-      const mlData = await fetchMercadoLivreApi(finalUrl);
+      const mlData = await fetchMercadoLivreApi(finalUrl, mercadoLivreAppId, mercadoLivreClientSecret);
       if (mlData) {
         productTitle = mlData.title || productTitle;
         productPrice = mlData.price || productPrice;

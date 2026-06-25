@@ -60,7 +60,7 @@ export async function resolveRedirectPuppeteer(shortLink: string): Promise<strin
  * Faz uma requisição direta para a API Pública do Mercado Livre.
  * Extremamente rápido e não sofre bloqueio de bot.
  */
-export async function fetchMercadoLivreApi(url: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
+export async function fetchMercadoLivreApi(url: string, userAppId?: string, userClientSecret?: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
   try {
     const match = url.match(/MLB-?(\d+)/i);
     if (!match) return null;
@@ -81,6 +81,24 @@ export async function fetchMercadoLivreApi(url: string): Promise<{ title: string
     };
   } catch (e) {
     console.error("[scraper] Erro ao consultar API do Mercado Livre:", e);
+    return null;
+  }
+}
+
+/**
+ * 1.5. Faz uma chamada à API Oficial da Amazon (PA-API).
+ * Requer SDK ou assinatura complexa (SigV4). Implementação base conectada à camada 0.
+ */
+export async function fetchAmazonOfficialApi(keyword: string, accessKey?: string, secretKey?: string, partnerTag?: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
+  if (!accessKey || !secretKey || !partnerTag) return null;
+  
+  try {
+    console.log(`[scraper] Consultando Amazon PA-API para: ${keyword}`);
+    // Futura implementação completa da assinatura V4 da Amazon PA-API
+    // Por enquanto retorna null para continuar o fallback (HTTP e Playwright)
+    return null;
+  } catch (error) {
+    console.error("Erro na API Oficial da Amazon:", error);
     return null;
   }
 }
