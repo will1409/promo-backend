@@ -49,8 +49,14 @@ router.get('/:userId', async (req: Request, res: Response) => {
     // Buscar Ofertas
     const offersSnapshot = await db.collection('offers')
       .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
       .get();
+      
+    // Converter para array e ordenar localmente para não exigir índice composto no Firestore
+    const sortedOffersDocs = offersSnapshot.docs.slice().sort((a, b) => {
+      const dateA = a.data().createdAt ? new Date(a.data().createdAt).getTime() : 0;
+      const dateB = b.data().createdAt ? new Date(b.data().createdAt).getTime() : 0;
+      return dateB - dateA; // Descending
+    });
       
     // Buscar quantidade de campanhas
     const campaignsSnapshot = await db.collection('campaigns')
@@ -92,8 +98,8 @@ router.get('/:userId', async (req: Request, res: Response) => {
       rawPct: totalSourceClicks > 0 ? Math.round((item.value / totalSourceClicks) * 100) : 0
     }));
 
-    // Selecionar as últimas 5 ofertas
-    const recentOffers = offersSnapshot.docs.slice(0, 5).map(doc => {
+    // Selecionar as últimas 5 ofertas (agora extraídas do array ordenado)
+    const recentOffers = sortedOffersDocs.slice(0, 5).map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
