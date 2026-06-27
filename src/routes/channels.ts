@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { sendMessageHelper } from '../services/sender';
 import { db } from '../config/firebase';
+import { getUserLimits } from '../utils/planLimits';
 
 export const channelsRouter = Router();
 
@@ -32,5 +33,37 @@ channelsRouter.post('/send', async (req, res) => {
   } catch (error: any) {
     console.error('Error sending message:', error);
     res.status(500).json({ error: error.message || 'Internal Server Error' });
+  }
+});
+
+channelsRouter.post('/create', async (req, res) => {
+  const { userId, name, type, targetId } = req.body;
+
+  if (!userId || !name || !type || !targetId) {
+    return res.status(400).json({ error: 'Faltam campos obrigatórios' });
+  }
+
+  try {
+    const limits = await getUserLimits(userId);
+    
+    // Contar canais atuais
+    const channelsSnap = await db.collection(`users/${userId}/channels`).get();
+    const currentChannelsCount = channelsSnap.size;
+
+    if (currentChannelsCount >= limits.channels) {
+      return res.status(403).json({ error: `Você atingiu o limite de ${limits.channels} canal(is) do seu plano. Faça upgrade para adicionar mais.` });
+    }
+
+    const newDocRef = await db.collection(`users/${userId}/channels`).add({
+      name,
+      type,
+      targetId,
+      createdAt: new Date().toISOString()
+    });
+
+    return res.json({ success: true, id: newDocRef.id });
+  } catch (error: any) {
+    console.error('Error creating channel:', error);
+    return res.status(500).json({ error: 'Erro ao criar canal.' });
   }
 });

@@ -2,6 +2,36 @@ import cron from 'node-cron';
 import { db } from '../config/firebase';
 import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer, fetchMercadoLivreApi, scrapeAmazonHttp, scrapeMercadoLivreHttp, fetchAmazonOfficialApi } from './scraper';
 import { sendMessageHelper } from './sender';
+import { getUserLimits } from '../utils/planLimits';
+import fs from 'fs';
+import path from 'path';
+
+const USAGE_FILE = path.join(__dirname, '../../daily_usage.json');
+
+function getDailyUsage(userId: string): number {
+  try {
+    if (!fs.existsSync(USAGE_FILE)) return 0;
+    const data = JSON.parse(fs.readFileSync(USAGE_FILE, 'utf-8'));
+    const today = new Date().toISOString().split('T')[0];
+    if (data.date !== today) return 0;
+    return data.users?.[userId] || 0;
+  } catch(e) { return 0; }
+}
+
+function incrementDailyUsage(userId: string) {
+  try {
+    let data = { date: '', users: {} as Record<string, number> };
+    if (fs.existsSync(USAGE_FILE)) {
+      data = JSON.parse(fs.readFileSync(USAGE_FILE, 'utf-8'));
+    }
+    const today = new Date().toISOString().split('T')[0];
+    if (data.date !== today) {
+      data = { date: today, users: {} };
+    }
+    data.users[userId] = (data.users[userId] || 0) + 1;
+    fs.writeFileSync(USAGE_FILE, JSON.stringify(data));
+  } catch(e) {}
+}
 
 function extractKeywordFromUrl(url: string): string {
   try {
@@ -194,6 +224,17 @@ export const startScheduler = () => {
           
           if (currentIndex >= links.length) {
             await doc.ref.update({ status: 'finished' });
+            continue;
+          }
+
+          const limits = await getUserLimits(userId);
+          const currentUsage = getDailyUsage(userId);
+          if (currentUsage >= limits.dailyOffers) {
+            console.log(`[scheduler] Usuário ${userId} atingiu limite diário de ${limits.dailyOffers} ofertas. Pulando campanha ${doc.id}`);
+            // Joga para daqui 1 hora para não ficar rodando toda hora à toa
+            await doc.ref.update({
+              nextRunAt: new Date(Date.now() + 60 * 60000).toISOString()
+            });
             continue;
           }
  
@@ -394,6 +435,9 @@ export const startScheduler = () => {
             }
             
             console.log(`✅ Link da campanha processado. Disparado para ${sentCount} canais.`);
+            if (sentCount > 0) {
+              incrementDailyUsage(userId);
+            }
 
             // 7. Update Campaign Status
             const nextIndex = currentIndex + 1;

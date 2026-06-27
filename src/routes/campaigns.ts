@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { db } from '../config/firebase';
+import { getUserLimits } from '../utils/planLimits';
 
 const router = Router();
 
@@ -15,6 +16,18 @@ router.post('/create', async (req: Request, res: Response) => {
 
     if (links.length > 5) {
       return res.status(400).json({ error: 'O limite máximo é de 5 links por campanha.' });
+    }
+
+    const limits = await getUserLimits(userId);
+
+    // Contar campanhas ativas
+    const campaignsSnap = await db.collection('campaigns')
+      .where('userId', '==', userId)
+      .where('status', '==', 'active')
+      .get();
+      
+    if (campaignsSnap.size >= limits.campaigns) {
+      return res.status(403).json({ error: `Você atingiu o limite de ${limits.campaigns} campanha(s) ativa(s) do seu plano. Faça upgrade para adicionar mais.` });
     }
 
     const docRef = await db.collection('campaigns').add({
