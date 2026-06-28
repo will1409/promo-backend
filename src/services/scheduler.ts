@@ -69,6 +69,14 @@ function extractItemIdFromUrl(url: string): string {
   return "";
 }
 
+function chunkArray<T>(array: T[], size: number): T[][] {
+  const result = [];
+  for (let i = 0; i < array.length; i += size) {
+    result.push(array.slice(i, i + size));
+  }
+  return result;
+}
+
 export const startScheduler = () => {
   console.log('⏳ Iniciando CronJob de Agendamentos e Campanhas...');
   
@@ -116,22 +124,24 @@ export const startScheduler = () => {
 
         const MAX_RETRIES = 5;
 
-        for (const doc of docsToProcess) {
-          const schedule = doc.data();
-          const { userId, messageText, targetChannels } = schedule;
-          const retryCount: number = schedule.retryCount || 0;
-          let sentCount = 0;
+        const scheduledChunks = chunkArray(docsToProcess, 3);
+        for (const chunk of scheduledChunks) {
+          await Promise.all(chunk.map(async (doc) => {
+            const schedule = doc.data();
+            const { userId, messageText, targetChannels } = schedule;
+            const retryCount: number = schedule.retryCount || 0;
+            let sentCount = 0;
 
-          // Verifica se excedeu o máximo de tentativas
-          if (retryCount >= MAX_RETRIES) {
-            await doc.ref.update({
-              status: 'failed_permanently',
-              failedAt: new Date().toISOString(),
-              failReason: `Máximo de ${MAX_RETRIES} tentativas atingido sem sucesso.`
-            });
-            console.warn(`❌ Agendamento ${doc.id} marcado como falha permanente após ${retryCount} tentativas.`);
-            continue;
-          }
+            // Verifica se excedeu o máximo de tentativas
+            if (retryCount >= MAX_RETRIES) {
+              await doc.ref.update({
+                status: 'failed_permanently',
+                failedAt: new Date().toISOString(),
+                failReason: `Máximo de ${MAX_RETRIES} tentativas atingido sem sucesso.`
+              });
+              console.warn(`❌ Agendamento ${doc.id} marcado como falha permanente após ${retryCount} tentativas.`);
+              return;
+            }
 
           for (const channel of targetChannels) {
             let channelData: FirebaseFirestore.DocumentData | undefined;
@@ -196,9 +206,10 @@ export const startScheduler = () => {
               });
               console.warn(`⚠️ Agendamento ${doc.id} falhou (tentativa ${nextRetryCount}/${MAX_RETRIES}). Próximo reenvio em 1 minuto: ${nextRetryAt}`);
             }
-          } catch (updateErr: any) {
-            console.error(`Erro crítico ao atualizar status do agendamento ${doc.id} no Firestore:`, updateErr.message || updateErr);
-          }
+            } catch (updateErr: any) {
+              console.error(`Erro crítico ao atualizar status do agendamento ${doc.id} no Firestore:`, updateErr.message || updateErr);
+            }
+          }));
         }
       }
 
@@ -218,25 +229,28 @@ export const startScheduler = () => {
 
         const activeCampaigns = campaignsSnapshot.docs.filter(doc => doc.data().nextRunAt <= now);
         
-        for (const doc of activeCampaigns) {
-          const campaign = doc.data();
-          const { userId, links, targetChannels, currentIndex, intervalMinutes, name } = campaign;
-          
-          if (currentIndex >= links.length) {
-            await doc.ref.update({ status: 'finished' });
-            continue;
-          }
+        const campaignChunks = chunkArray(activeCampaigns, 3);
+        
+        for (const chunk of campaignChunks) {
+          await Promise.all(chunk.map(async (doc) => {
+            const campaign = doc.data();
+            const { userId, links, targetChannels, currentIndex, intervalMinutes, name } = campaign;
+            
+            if (currentIndex >= links.length) {
+              await doc.ref.update({ status: 'finished' });
+              return;
+            }
 
-          const limits = await getUserLimits(userId);
-          const currentUsage = getDailyUsage(userId);
-          if (currentUsage >= limits.dailyOffers) {
-            console.log(`[scheduler] Usuário ${userId} atingiu limite diário de ${limits.dailyOffers} ofertas. Pulando campanha ${doc.id}`);
-            // Joga para daqui 1 hora para não ficar rodando toda hora à toa
-            await doc.ref.update({
-              nextRunAt: new Date(Date.now() + 60 * 60000).toISOString()
-            });
-            continue;
-          }
+            const limits = await getUserLimits(userId);
+            const currentUsage = getDailyUsage(userId);
+            if (currentUsage >= limits.dailyOffers) {
+              console.log(`[scheduler] Usuário ${userId} atingiu limite diário de ${limits.dailyOffers} ofertas. Pulando campanha ${doc.id}`);
+              // Joga para daqui 1 hora para não ficar rodando toda hora à toa
+              await doc.ref.update({
+                nextRunAt: new Date(Date.now() + 60 * 60000).toISOString()
+              });
+              return;
+            }
  
           // Sanitiza o link: se vier com TAB ou espaço duplo (dois links colados), usa só o primeiro URL válido
           const rawLink = links[currentIndex];
@@ -472,7 +486,8 @@ export const startScheduler = () => {
               console.error(`❌ Erro ao atualizar campanha ${doc.id} após falha:`, updateErr.message);
             }
           }
-        }
+        }));
+      }
       }
 
     } catch (error) {
