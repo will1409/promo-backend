@@ -20,14 +20,36 @@ router.post('/create', async (req: Request, res: Response) => {
 
     const limits = await getUserLimits(userId);
 
-    // Contar campanhas ativas
+    if (limits.campaigns === 0) {
+      return res.status(403).json({ error: 'Seu plano atual não permite criar campanhas. Faça upgrade.' });
+    }
+
+    if (targetChannels.length > limits.channels) {
+      return res.status(403).json({ error: `Seu plano (${limits.channels} canais) não permite o envio para ${targetChannels.length} canais simultâneos.` });
+    }
+
+    // 1. Contar quantas campanhas o usuário CRIOU hoje (Limite Diário)
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDayISO = startOfDay.toISOString();
+
+    const todayCampaignsSnap = await db.collection('campaigns')
+      .where('userId', '==', userId)
+      .where('createdAt', '>=', startOfDayISO)
+      .get();
+      
+    if (todayCampaignsSnap.size >= limits.campaigns) {
+      return res.status(403).json({ error: `Você atingiu o limite de CRIAR ${limits.campaigns} campanha(s) por dia do seu plano.` });
+    }
+
+    // 2. Contar campanhas ativas simultâneas (Limite de Concorrência)
     const campaignsSnap = await db.collection('campaigns')
       .where('userId', '==', userId)
       .where('status', '==', 'active')
       .get();
       
     if (campaignsSnap.size >= limits.campaigns) {
-      return res.status(403).json({ error: `Você atingiu o limite de ${limits.campaigns} campanha(s) ativa(s) do seu plano. Faça upgrade para adicionar mais.` });
+      return res.status(403).json({ error: `Você já tem ${limits.campaigns} campanha(s) rodando ao mesmo tempo. Pause ou exclua uma para criar outra (se tiver cota diária).` });
     }
 
     const docRef = await db.collection('campaigns').add({

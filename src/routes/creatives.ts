@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { db } from '../config/firebase';
 import { resolveRedirectPuppeteer, fetchShopeeOfficialApi, scrapeProductPuppeteer, fetchMercadoLivreApi, scrapeAmazonHttp, scrapeMercadoLivreHttp, fetchAmazonOfficialApi } from '../services/scraper';
+import { getUserLimits } from '../utils/planLimits';
 
 const router = Router();
 
@@ -47,6 +48,15 @@ router.post('/generate-from-link', async (req: Request, res: Response) => {
     const { linkUrl, userId } = req.body;
     if (!linkUrl) {
       return res.status(400).json({ error: 'URL é obrigatória.' });
+    }
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Usuário não autenticado.' });
+    }
+
+    const limits = await getUserLimits(userId);
+    if (limits.dailyOffers === 0) {
+      return res.status(403).json({ error: 'Seu plano atual não permite utilizar esta ferramenta. Faça upgrade.' });
     }
 
     let finalUrl = linkUrl;

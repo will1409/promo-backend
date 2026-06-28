@@ -108,8 +108,13 @@ export async function fetchAmazonOfficialApi(keyword: string, accessKey?: string
  * Aceita tanto palavras-chave de texto quanto Item IDs numéricos.
  */
 export async function fetchShopeeOfficialApi(keyword: string, userAppId?: string, userAppSecret?: string): Promise<{ title: string, price: string, imageUrl: string } | null> {
-  const appId = userAppId || process.env.GLOBAL_SHOPEE_APP_ID || '18396940613';
-  const appSecret = userAppSecret || process.env.GLOBAL_SHOPEE_APP_SECRET || 'AFCPGMWPPRO7YXODKDHHLJDVKBU3LTJ3';
+  const globalAppId = process.env.GLOBAL_SHOPEE_APP_ID || '18396940613';
+  const globalAppSecret = process.env.GLOBAL_SHOPEE_APP_SECRET || 'AFCPGMWPPRO7YXODKDHHLJDVKBU3LTJ3';
+
+  // Se o usuário forneceu um, mas não o outro, força usar o global para evitar descasamento de assinatura
+  let appId = (userAppId && userAppSecret) ? userAppId : globalAppId;
+  let appSecret = (userAppId && userAppSecret) ? userAppSecret : globalAppSecret;
+
   if (!appId || !appSecret || !keyword) return null;
 
   try {
@@ -125,30 +130,44 @@ export async function fetchShopeeOfficialApi(keyword: string, userAppId?: string
 
     const payloadObj = { query };
     const payload = JSON.stringify(payloadObj);
-    const timestamp = Math.floor(Date.now() / 1000);
-    const factor = appId + timestamp + payload + appSecret;
-    const signature = crypto.createHash('sha256').update(factor).digest('hex');
+    
+    // Função helper para tentar a API com as credenciais dadas
+    const tryApi = async (currentAppId: string, currentAppSecret: string) => {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const factor = currentAppId + timestamp + payload + currentAppSecret;
+      const signature = crypto.createHash('sha256').update(factor).digest('hex');
 
-    const res = await fetch('https://open-api.affiliate.shopee.com.br/graphql', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `SHA256 Credential=${appId},Timestamp=${timestamp},Signature=${signature}`
-      },
-      body: payload,
-      timeout: 10000 // 10 segundos
-    });
+      const res = await fetch('https://open-api.affiliate.shopee.com.br/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `SHA256 Credential=${currentAppId},Timestamp=${timestamp},Signature=${signature}`
+        },
+        body: payload,
+        timeout: 10000 // 10 segundos
+      });
 
-    const data: any = await res.json();
-    if (data?.data?.productOfferV2?.nodes?.length > 0) {
-      const node = data.data.productOfferV2.nodes[0];
-      return {
-        title: node.productName || '',
-        price: node.price ? String(node.price) : '',
-        imageUrl: node.imageUrl || ''
-      };
+      const data: any = await res.json();
+      if (data?.data?.productOfferV2?.nodes?.length > 0) {
+        const node = data.data.productOfferV2.nodes[0];
+        return {
+          title: node.productName || '',
+          price: node.price ? String(node.price) : '',
+          imageUrl: node.imageUrl || ''
+        };
+      }
+      return null;
+    };
+
+    let result = await tryApi(appId, appSecret);
+
+    // Se falhou e estávamos tentando usar as credenciais do usuário, tenta as globais!
+    if (!result && appId !== globalAppId) {
+      console.log(`[scraper] Shopee API falhou com credenciais do usuário. Tentando credenciais globais...`);
+      result = await tryApi(globalAppId, globalAppSecret);
     }
-    return null;
+
+    return result;
   } catch (error) {
     console.error("Erro na API Oficial da Shopee:", error);
     return null;

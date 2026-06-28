@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { db } from '../config/firebase';
+import { getUserLimits } from '../utils/planLimits';
 
 const router = Router();
 
@@ -8,6 +9,28 @@ const router = Router();
 router.post('/generate', async (req: Request, res: Response) => {
   try {
     let { productName, currentPrice, oldPrice, category, platform, affiliateLink, userId } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Usuário não autenticado.' });
+    }
+
+    const limits = await getUserLimits(userId);
+    if (limits.dailyOffers === 0) {
+      return res.status(403).json({ error: 'Seu plano atual não permite gerar ofertas. Faça upgrade para utilizar o sistema.' });
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const startOfDayISO = startOfDay.toISOString();
+
+    const todayOffersSnap = await db.collection('offers')
+      .where('userId', '==', userId)
+      .where('createdAt', '>=', startOfDayISO)
+      .get();
+
+    if (todayOffersSnap.size >= limits.dailyOffers) {
+      return res.status(403).json({ error: `Você atingiu o limite de ${limits.dailyOffers} ofertas diárias do seu plano.` });
+    }
 
     if (!productName || productName.trim() === '') productName = 'Oferta Especial';
     if (!currentPrice || currentPrice.toString().trim() === '') currentPrice = 'Confira no site';
@@ -24,17 +47,15 @@ router.post('/generate', async (req: Request, res: Response) => {
     const telegram = whatsapp;
     const generated = { whatsapp, telegram };
 
-    if (userId) {
-      try {
-        await db.collection('offers').add({
-          ...input,
-          ...generated,
-          clicks: 0,
-          createdAt: new Date().toISOString(),
-        });
-      } catch (e) {
-        console.error('Falha ao salvar no Firestore (possível falta de credenciais):', e);
-      }
+    try {
+      await db.collection('offers').add({
+        ...input,
+        ...generated,
+        clicks: 0,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error('Falha ao salvar no Firestore (possível falta de credenciais):', e);
     }
 
     return res.json({ success: true, data: generated });
@@ -64,6 +85,15 @@ router.post('/schedule', async (req: Request, res: Response) => {
     const { userId, messageText, targetChannels, scheduledFor, imageUrl } = req.body;
     if (!userId || !messageText || !targetChannels || !scheduledFor) {
       return res.status(400).json({ error: 'Faltam campos obrigatórios' });
+    }
+
+    const limits = await getUserLimits(userId);
+    if (limits.dailyOffers === 0) {
+      return res.status(403).json({ error: 'Seu plano atual não permite agendar ofertas. Faça upgrade.' });
+    }
+
+    if (targetChannels.length > limits.channels) {
+      return res.status(403).json({ error: `Seu plano (${limits.channels} canais) não permite o envio para ${targetChannels.length} canais simultâneos.` });
     }
 
     const docRef = await db.collection('scheduled_offers').add({
