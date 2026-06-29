@@ -238,49 +238,37 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
       if (isPremium && linkUrl) {
         try {
           console.log(`[WhatsApp] Enviando Link Preview Expandido (Premium) com timeout de 20s para ${jid}...`);
-          
-          const adReplyPayload: any = {
-            title: "Oferta Especial",
-            body: "Confira esta oferta no site!",
-            mediaType: 1,
-            renderLargerThumbnail: true,
-            sourceUrl: linkUrl
-          };
-
-          // Prevenção de Silent Drop real: WhatsApp requer thumbnail < 64KB e engasga com thumbnailUrl de CDNs pesadas.
-          // Comprimindo imagem on-the-fly para forçar o botão gigante!
           let finalBuffer = buffer;
           if (buffer.length > 60000) {
              try {
                 const { Jimp, JimpMime } = require('jimp');
-                console.log(`[WhatsApp] Comprimindo miniatura gigante de ${buffer.length} bytes...`);
+                console.log(`[WhatsApp] Comprimindo miniatura para o Link Preview...`);
                 const image = await Jimp.read(buffer);
-                // Reduz agressivamente para 150px (gera arquivos minúsculos < 15KB)
-                // Se ainda assim dropar, o problema NÃO é o peso, mas sim o WhatsApp bloqueando externalAdReply no grupo.
-                image.resize({ w: 150 });
+                image.resize({ w: 400 }); // Restaura para 400px para ter boa qualidade no linkPreview nativo
                 finalBuffer = Buffer.from(await image.getBuffer(JimpMime.jpeg));
-                console.log(`[WhatsApp] Miniatura comprimida com extrema agressividade para ${finalBuffer.length} bytes!`);
+                console.log(`[WhatsApp] Miniatura comprimida com sucesso para ${finalBuffer.length} bytes!`);
              } catch (compressErr: any) {
                 console.error(`[WhatsApp] Falha ao comprimir imagem com Jimp:`, compressErr.message || compressErr);
                 throw new Error('Imagem excede 64KB e não pôde ser comprimida.');
              }
           }
-          
-          adReplyPayload.thumbnail = finalBuffer;
+
+          const linkPreviewData = {
+            "matched-text": linkUrl,
+            jpegThumbnail: finalBuffer,
+            title: "🔥 Oferta Imperdível",
+            description: "Clique na imagem ou no link para conferir na loja!"
+          };
 
           await promiseWithTimeout(
             session.socket.sendMessage(jid, { 
               text: message,
-              contextInfo: {
-                forwardingScore: 1,
-                isForwarded: true,
-                externalAdReply: adReplyPayload
-              }
+              linkPreview: linkPreviewData
             }),
             20000,
-            'Timeout de 20s ao enviar Link Preview Expandido'
+            'Timeout de 20s ao enviar Link Preview Nativo'
           );
-          console.log(`[WhatsApp] Link Preview Expandido enviado com sucesso para ${jid}`);
+          console.log(`[WhatsApp] Link Preview Nativo enviado com sucesso para ${jid}`);
           return;
         } catch (err: any) {
           console.error('[WhatsApp] Erro ao enviar Link Preview Expandido, tentando fallback normal:', err.message || err);
