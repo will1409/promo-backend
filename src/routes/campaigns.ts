@@ -33,12 +33,16 @@ router.post('/create', async (req: Request, res: Response) => {
     startOfDay.setHours(0, 0, 0, 0);
     const startOfDayISO = startOfDay.toISOString();
 
-    const todayCampaignsSnap = await db.collection('campaigns')
+    const allUserCampaignsSnap = await db.collection('campaigns')
       .where('userId', '==', userId)
-      .where('createdAt', '>=', startOfDayISO)
       .get();
+
+    const todayCampaignsCount = allUserCampaignsSnap.docs.filter(doc => {
+      const data = doc.data();
+      return data.createdAt && data.createdAt >= startOfDayISO;
+    }).length;
       
-    if (todayCampaignsSnap.size >= limits.campaigns) {
+    if (todayCampaignsCount >= limits.campaigns) {
       return res.status(403).json({ error: `Você atingiu o limite de CRIAR ${limits.campaigns} campanha(s) por dia do seu plano.` });
     }
 
