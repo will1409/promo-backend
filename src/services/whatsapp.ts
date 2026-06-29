@@ -235,61 +235,23 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
     }
 
     if (buffer) {
-      if (isPremium && linkUrl) {
-        try {
-          console.log(`[WhatsApp] Enviando Link Preview Expandido (Premium) com timeout de 20s para ${jid}...`);
-          let finalBuffer = buffer;
-          if (buffer.length > 60000) {
-             try {
-                const { Jimp, JimpMime } = require('jimp');
-                console.log(`[WhatsApp] Comprimindo miniatura para o Link Preview...`);
-                const image = await Jimp.read(buffer);
-                image.resize({ w: 400 }); // Restaura para 400px para ter boa qualidade no linkPreview nativo
-                finalBuffer = Buffer.from(await image.getBuffer(JimpMime.jpeg));
-                console.log(`[WhatsApp] Miniatura comprimida com sucesso para ${finalBuffer.length} bytes!`);
-             } catch (compressErr: any) {
-                console.error(`[WhatsApp] Falha ao comprimir imagem com Jimp:`, compressErr.message || compressErr);
-                throw new Error('Imagem excede 64KB e não pôde ser comprimida.');
-             }
-          }
-
-          const linkPreviewData = {
-            "matched-text": linkUrl,
-            jpegThumbnail: finalBuffer,
-            title: "🔥 Oferta Imperdível",
-            description: "Clique na imagem ou no link para conferir na loja!"
-          };
-
-          await promiseWithTimeout(
-            session.socket.sendMessage(jid, { 
-              text: message,
-              linkPreview: linkPreviewData
-            }),
-            20000,
-            'Timeout de 20s ao enviar Link Preview Nativo'
-          );
-          console.log(`[WhatsApp] Link Preview Nativo enviado com sucesso para ${jid}`);
-          return;
-        } catch (err: any) {
-          console.error('[WhatsApp] Erro ao enviar Link Preview Expandido, tentando fallback normal:', err.message || err);
-        }
-      }
-
-      // Se não for premium ou se der erro no Link Preview, tenta mandar a imagem normal com legenda
+      // Envio principal: imagem com legenda (funciona para Lite, Pro E Premium)
+      // O link na mensagem gera o preview nativo do WhatsApp automaticamente.
       try {
-        console.log(`[WhatsApp] Enviando imagem normal (${sourceName}) com timeout de 20s para ${jid}...`);
+        console.log(`[WhatsApp] Enviando imagem (${sourceName}) com timeout de 25s para ${jid}...`);
         await promiseWithTimeout(
           session.socket.sendMessage(jid, { image: buffer, caption: message }),
-          20000,
-          `Timeout de 20s ao enviar imagem normal (${sourceName})`
+          25000,
+          `Timeout de 25s ao enviar imagem (${sourceName})`
         );
-        console.log(`[WhatsApp] Mensagem com imagem normal enviada com sucesso para ${jid}`);
+        console.log(`[WhatsApp] Mensagem com imagem enviada com sucesso para ${jid}`);
         return;
       } catch (err: any) {
-        console.error(`[WhatsApp] Erro ao enviar imagem normal (${sourceName}), tentando texto como fallback:`, err.message || err);
+        console.error(`[WhatsApp] Erro ao enviar imagem, tentando texto como fallback:`, err.message || err);
       }
     } else {
       console.warn('[WhatsApp] Falha ao obter buffer da imagem, enviando como texto apenas.');
+    }
     }
   }
 
