@@ -255,16 +255,13 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
                 const { Jimp, JimpMime } = require('jimp');
                 console.log(`[WhatsApp] Comprimindo miniatura gigante de ${buffer.length} bytes...`);
                 const image = await Jimp.read(buffer);
-                image.resize({ w: 400 });
+                // Reduz agressivamente para 150px (gera arquivos minúsculos < 15KB)
+                // Se ainda assim dropar, o problema NÃO é o peso, mas sim o WhatsApp bloqueando externalAdReply no grupo.
+                image.resize({ w: 150 });
                 finalBuffer = Buffer.from(await image.getBuffer(JimpMime.jpeg));
-                if (finalBuffer.length > 60000) {
-                  image.resize({ w: 250 });
-                  finalBuffer = Buffer.from(await image.getBuffer(JimpMime.jpeg));
-                }
-                console.log(`[WhatsApp] Miniatura comprimida com sucesso para ${finalBuffer.length} bytes!`);
+                console.log(`[WhatsApp] Miniatura comprimida com extrema agressividade para ${finalBuffer.length} bytes!`);
              } catch (compressErr: any) {
                 console.error(`[WhatsApp] Falha ao comprimir imagem com Jimp:`, compressErr.message || compressErr);
-                // Se a compressão falhar e for muito pesada, forçamos o erro para cair no fallback seguro
                 throw new Error('Imagem excede 64KB e não pôde ser comprimida.');
              }
           }
