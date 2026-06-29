@@ -10,7 +10,8 @@
     "dev": "nodemon --exec ts-node -r tsconfig-paths/register src/index.ts",
     "build": "tsc",
     "start": "node lib/index.js",
-    "lint": "eslint --ext .js,.ts ."
+    "lint": "eslint --ext .js,.ts .",
+    "postinstall": "playwright install chromium"
   },
   "type": "commonjs",
   "dependencies": {
