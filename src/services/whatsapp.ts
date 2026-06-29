@@ -239,23 +239,29 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
         try {
           console.log(`[WhatsApp] Enviando Link Preview Expandido (Premium) com timeout de 20s para ${jid}...`);
           
+          const adReplyPayload: any = {
+            title: "Oferta Especial",
+            mediaType: 1,
+            renderLargerThumbnail: true,
+            sourceUrl: linkUrl
+          };
+
           // Prevenção de Silent Drop: O WhatsApp ignora silenciosamente externalAdReplies com thumbnails > 64KB
-          if (buffer.length > 60000) {
-             console.log(`[WhatsApp] Imagem muito grande para miniatura (${buffer.length} bytes). Forçando fallback para imagem com legenda.`);
-             throw new Error('Imagem excede 64KB (causaria silent drop na miniatura).');
+          if (buffer.length <= 60000) {
+            adReplyPayload.thumbnail = buffer;
+          } else if (imageUrl && !imageUrl.startsWith('data:image')) {
+            console.log(`[WhatsApp] Buffer gigante (${buffer.length} bytes). Usando thumbnailUrl em vez de embutir a imagem para manter o card clicável.`);
+            adReplyPayload.thumbnailUrl = imageUrl;
+          } else {
+            console.log(`[WhatsApp] Imagem muito grande e sem URL pública (${buffer.length} bytes). Forçando fallback para imagem com legenda.`);
+            throw new Error('Imagem excede 64KB (causaria silent drop na miniatura).');
           }
 
           await promiseWithTimeout(
             session.socket.sendMessage(jid, { 
               text: message,
               contextInfo: {
-                externalAdReply: {
-                  title: "Oferta Especial",
-                  mediaType: 1,
-                  renderLargerThumbnail: true,
-                  thumbnail: buffer,
-                  sourceUrl: linkUrl
-                }
+                externalAdReply: adReplyPayload
               }
             }),
             20000,
