@@ -181,7 +181,7 @@ const promiseWithTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMsg:
   });
 };
 
-export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string) => {
+export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string, isPremium: boolean = false, linkUrl?: string | null) => {
   // Garante que a sessão existe e não está desconectada
   if (!sessions[userId] || sessions[userId].status === 'disconnected') {
     console.log(`[WhatsApp] Sessão ausente/desconectada para ${userId}, iniciando...`);
@@ -217,40 +217,65 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
   const jid = targetId.includes('@') ? targetId : `${targetId}@g.us`;
   
   if (imageUrl) {
+    let buffer: Buffer | null = null;
+    let sourceName = '';
+
     if (imageUrl.startsWith('data:image')) {
       try {
         const base64Data = imageUrl.split(',')[1];
-        const buffer = Buffer.from(base64Data, 'base64');
-        console.log(`[WhatsApp] Enviando imagem base64 com timeout de 20s para ${jid}...`);
-        await promiseWithTimeout(
-          session.socket.sendMessage(jid, { image: buffer, caption: message }),
-          20000,
-          'Timeout de 20s ao enviar imagem base64'
-        );
-        console.log(`[WhatsApp] Mensagem com imagem base64 enviada com sucesso para ${jid}`);
-        return;
+        buffer = Buffer.from(base64Data, 'base64');
+        sourceName = 'base64';
       } catch (err: any) {
-        console.error('[WhatsApp] Erro ao enviar imagem base64, tentando texto como fallback:', err.message || err);
+        console.error('[WhatsApp] Erro ao decodificar imagem base64:', err.message || err);
       }
     } else {
       console.log(`[WhatsApp] Baixando imagem com timeout de 10s: ${imageUrl}`);
-      const imageBuffer = await fetchImageBufferWithTimeout(imageUrl, 10000);
-      if (imageBuffer) {
+      buffer = await fetchImageBufferWithTimeout(imageUrl, 10000);
+      sourceName = 'baixada';
+    }
+
+    if (buffer) {
+      if (isPremium && linkUrl) {
         try {
-          console.log(`[WhatsApp] Enviando imagem baixada com timeout de 20s para ${jid}...`);
+          console.log(`[WhatsApp] Enviando Link Preview Expandido (Premium) com timeout de 20s para ${jid}...`);
           await promiseWithTimeout(
-            session.socket.sendMessage(jid, { image: imageBuffer, caption: message }),
+            session.socket.sendMessage(jid, { 
+              text: message,
+              contextInfo: {
+                externalAdReply: {
+                  title: "Oferta Especial",
+                  mediaType: 1,
+                  renderLargerThumbnail: true,
+                  thumbnail: buffer,
+                  sourceUrl: linkUrl
+                }
+              }
+            }),
             20000,
-            'Timeout de 20s ao enviar imagem baixada'
+            'Timeout de 20s ao enviar Link Preview Expandido'
           );
-          console.log(`[WhatsApp] Mensagem com imagem baixada enviada com sucesso para ${jid}`);
+          console.log(`[WhatsApp] Link Preview Expandido enviado com sucesso para ${jid}`);
           return;
         } catch (err: any) {
-          console.error('[WhatsApp] Erro ao enviar imagem baixada, tentando texto como fallback:', err.message || err);
+          console.error('[WhatsApp] Erro ao enviar Link Preview Expandido, tentando fallback normal:', err.message || err);
         }
-      } else {
-        console.warn('[WhatsApp] Falha ao baixar imagem, enviando como texto apenas.');
       }
+
+      // Se não for premium ou se der erro no Link Preview, tenta mandar a imagem normal com legenda
+      try {
+        console.log(`[WhatsApp] Enviando imagem normal (${sourceName}) com timeout de 20s para ${jid}...`);
+        await promiseWithTimeout(
+          session.socket.sendMessage(jid, { image: buffer, caption: message }),
+          20000,
+          `Timeout de 20s ao enviar imagem normal (${sourceName})`
+        );
+        console.log(`[WhatsApp] Mensagem com imagem normal enviada com sucesso para ${jid}`);
+        return;
+      } catch (err: any) {
+        console.error(`[WhatsApp] Erro ao enviar imagem normal (${sourceName}), tentando texto como fallback:`, err.message || err);
+      }
+    } else {
+      console.warn('[WhatsApp] Falha ao obter buffer da imagem, enviando como texto apenas.');
     }
   }
 
