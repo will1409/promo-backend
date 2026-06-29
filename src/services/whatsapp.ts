@@ -246,16 +246,29 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
             sourceUrl: linkUrl
           };
 
-          // Prevenção de Silent Drop: O WhatsApp ignora silenciosamente externalAdReplies com thumbnails > 64KB
-          if (buffer.length <= 60000) {
-            adReplyPayload.thumbnail = buffer;
-          } else if (imageUrl && !imageUrl.startsWith('data:image')) {
-            console.log(`[WhatsApp] Buffer gigante (${buffer.length} bytes). Usando thumbnailUrl em vez de embutir a imagem para manter o card clicável.`);
-            adReplyPayload.thumbnailUrl = imageUrl;
-          } else {
-            console.log(`[WhatsApp] Imagem muito grande e sem URL pública (${buffer.length} bytes). Forçando fallback para imagem com legenda.`);
-            throw new Error('Imagem excede 64KB (causaria silent drop na miniatura).');
+          // Prevenção de Silent Drop real: WhatsApp requer thumbnail < 64KB e engasga com thumbnailUrl de CDNs pesadas.
+          // Comprimindo imagem on-the-fly para forçar o botão gigante!
+          let finalBuffer = buffer;
+          if (buffer.length > 60000) {
+             try {
+                const { Jimp, JimpMime } = require('jimp');
+                console.log(`[WhatsApp] Comprimindo miniatura gigante de ${buffer.length} bytes...`);
+                const image = await Jimp.read(buffer);
+                image.resize({ w: 400 });
+                finalBuffer = Buffer.from(await image.getBuffer(JimpMime.jpeg));
+                if (finalBuffer.length > 60000) {
+                  image.resize({ w: 250 });
+                  finalBuffer = Buffer.from(await image.getBuffer(JimpMime.jpeg));
+                }
+                console.log(`[WhatsApp] Miniatura comprimida com sucesso para ${finalBuffer.length} bytes!`);
+             } catch (compressErr: any) {
+                console.error(`[WhatsApp] Falha ao comprimir imagem com Jimp:`, compressErr.message || compressErr);
+                // Se a compressão falhar e for muito pesada, forçamos o erro para cair no fallback seguro
+                throw new Error('Imagem excede 64KB e não pôde ser comprimida.');
+             }
           }
+          
+          adReplyPayload.thumbnail = finalBuffer;
 
           await promiseWithTimeout(
             session.socket.sendMessage(jid, { 
