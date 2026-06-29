@@ -241,6 +241,7 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
           
           const adReplyPayload: any = {
             title: "Oferta Especial",
+            body: "Confira esta oferta no site!",
             mediaType: 1,
             renderLargerThumbnail: true,
             sourceUrl: linkUrl
@@ -274,6 +275,8 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
             session.socket.sendMessage(jid, { 
               text: message,
               contextInfo: {
+                forwardingScore: 1,
+                isForwarded: true,
                 externalAdReply: adReplyPayload
               }
             }),
