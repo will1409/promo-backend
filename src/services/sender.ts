@@ -1,6 +1,5 @@
-import { db } from '../config/firebase';
+﻿import { db } from '../config/firebase';
 import { sendWhatsAppMessage } from './whatsapp';
-import { getUserPlan } from '../utils/planLimits';
 import crypto from 'crypto';
 
 export async function sendMessageHelper(
@@ -10,22 +9,20 @@ export async function sendMessageHelper(
   targetId: string,
   imageUrl?: string | null
 ): Promise<any> {
-  // 1. Carrega as integrações do usuário e plano
+  // 1. Carrega as integra├º├Áes do usu├írio
   const userDoc = await db.collection('users').doc(userId).collection('settings').doc('integrations').get();
   const integrations = userDoc.data() || {};
-  const userPlan = await getUserPlan(userId);
-  const isPremium = userPlan === 'premium';
-
-  // Extrai o primeiro link da mensagem para criar o botão clicável ou link preview
-  const linkRegex = /(https?:\/\/[^\s]+)/;
-  const match = message.match(linkRegex);
-  const linkUrl = match ? match[0] : null;
 
   if (channelType === 'telegram') {
     const token = integrations.telegramBotToken;
     if (!token) {
-      throw new Error('Telegram Bot Token não configurado nas Integrações.');
+      throw new Error('Telegram Bot Token n├úo configurado nas Integra├º├Áes.');
     }
+
+    // Extrai o primeiro link da mensagem para criar o bot├úo clic├ível
+    const linkRegex = /(https?:\/\/[^\s]+)/;
+    const match = message.match(linkRegex);
+    const linkUrl = match ? match[0] : null;
 
     let replyMarkup: any = undefined;
     if (linkUrl) {
@@ -33,7 +30,7 @@ export async function sendMessageHelper(
         inline_keyboard: [
           [
             {
-              text: '🛒 Compre Aqui',
+              text: '­ƒøÆ Compre Aqui',
               url: linkUrl
             }
           ]
@@ -91,9 +88,9 @@ export async function sendMessageHelper(
     return tgData;
 
   } else if (channelType === 'whatsapp') {
-    await sendWhatsAppMessage(userId, targetId, message, imageUrl || undefined, isPremium, linkUrl);
+    await sendWhatsAppMessage(userId, targetId, message, imageUrl || undefined);
     return 'Mensagem enviada via Baileys';
   } else {
-    throw new Error('Canal não suportado');
+    throw new Error('Canal n├úo suportado');
   }
 }

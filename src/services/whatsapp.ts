@@ -1,4 +1,4 @@
-import makeWASocket, { DisconnectReason, useMultiFileAuthState, Browsers, isJidGroup } from '@whiskeysockets/baileys';
+﻿import makeWASocket, { DisconnectReason, useMultiFileAuthState, Browsers, isJidGroup } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import http from 'http';
 import https from 'https';
@@ -117,11 +117,11 @@ export const logoutWhatsApp = async (userId: string) => {
 };
 
 /**
- * Força reset completo da sessão (destrói socket atual e recria do zero).
- * Usado quando a sessão fica presa em 'connecting' por muito tempo.
+ * For├ºa reset completo da sess├úo (destr├│i socket atual e recria do zero).
+ * Usado quando a sess├úo fica presa em 'connecting' por muito tempo.
  */
 const forceResetSession = async (userId: string): Promise<void> => {
-  console.log(`[WhatsApp] Forçando reset de sessão travada para ${userId}...`);
+  console.log(`[WhatsApp] For├ºando reset de sess├úo travada para ${userId}...`);
   try {
     const old = sessions[userId];
     if (old) {
@@ -181,25 +181,25 @@ const promiseWithTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMsg:
   });
 };
 
-export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string, isPremium: boolean = false, linkUrl?: string | null) => {
-  // Garante que a sessão existe e não está desconectada
+export const sendWhatsAppMessage = async (userId: string, targetId: string, message: string, imageUrl?: string) => {
+  // Garante que a sess├úo existe e n├úo est├í desconectada
   if (!sessions[userId] || sessions[userId].status === 'disconnected') {
-    console.log(`[WhatsApp] Sessão ausente/desconectada para ${userId}, iniciando...`);
+    console.log(`[WhatsApp] Sess├úo ausente/desconectada para ${userId}, iniciando...`);
     await startWhatsAppSession(userId);
   }
 
-  // Aguarda a conexão — com detecção de sessão travada em 'connecting'
+  // Aguarda a conex├úo ÔÇö com detec├º├úo de sess├úo travada em 'connecting'
   if ((sessions[userId] as WhatsAppSession).status !== 'connected') {
-    console.log(`[WhatsApp] Aguardando conexão para ${userId} (status: ${sessions[userId]?.status})...`);
+    console.log(`[WhatsApp] Aguardando conex├úo para ${userId} (status: ${sessions[userId]?.status})...`);
     
     let retries = 0;
     const MAX_WAIT = 30; // segundos totais
-    const FORCE_RESET_AT = 20; // se ainda 'connecting' após 20s, força reset
+    const FORCE_RESET_AT = 20; // se ainda 'connecting' ap├│s 20s, for├ºa reset
 
     while ((sessions[userId] as WhatsAppSession).status !== 'connected' && retries < MAX_WAIT) {
-      // Se ficou 20s em 'connecting' sem chegar em 'open', o socket travou — força reset
+      // Se ficou 20s em 'connecting' sem chegar em 'open', o socket travou ÔÇö for├ºa reset
       if (retries === FORCE_RESET_AT && (sessions[userId] as WhatsAppSession).status === 'connecting') {
-        console.log(`[WhatsApp] Sessão travada em 'connecting' para ${userId}. Forçando reset...`);
+        console.log(`[WhatsApp] Sess├úo travada em 'connecting' para ${userId}. For├ºando reset...`);
         await forceResetSession(userId);
       }
       await new Promise(r => setTimeout(r, 1000));
@@ -207,7 +207,7 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
     }
 
     if ((sessions[userId] as WhatsAppSession).status !== 'connected') {
-      throw new Error(`WhatsApp não pôde ser conectado para o usuário ${userId}. Status final: ${sessions[userId]?.status}`);
+      throw new Error(`WhatsApp n├úo p├┤de ser conectado para o usu├írio ${userId}. Status final: ${sessions[userId]?.status}`);
     }
   }
 
@@ -217,41 +217,40 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
   const jid = targetId.includes('@') ? targetId : `${targetId}@g.us`;
   
   if (imageUrl) {
-    let buffer: Buffer | null = null;
-    let sourceName = '';
-
     if (imageUrl.startsWith('data:image')) {
       try {
         const base64Data = imageUrl.split(',')[1];
-        buffer = Buffer.from(base64Data, 'base64');
-        sourceName = 'base64';
+        const buffer = Buffer.from(base64Data, 'base64');
+        console.log(`[WhatsApp] Enviando imagem base64 com timeout de 20s para ${jid}...`);
+        await promiseWithTimeout(
+          session.socket.sendMessage(jid, { image: buffer, caption: message }),
+          20000,
+          'Timeout de 20s ao enviar imagem base64'
+        );
+        console.log(`[WhatsApp] Mensagem com imagem base64 enviada com sucesso para ${jid}`);
+        return;
       } catch (err: any) {
-        console.error('[WhatsApp] Erro ao decodificar imagem base64:', err.message || err);
+        console.error('[WhatsApp] Erro ao enviar imagem base64, tentando texto como fallback:', err.message || err);
       }
     } else {
       console.log(`[WhatsApp] Baixando imagem com timeout de 10s: ${imageUrl}`);
-      buffer = await fetchImageBufferWithTimeout(imageUrl, 10000);
-      sourceName = 'baixada';
-    }
-
-    if (buffer) {
-      // Envio principal: imagem com legenda (funciona para Lite, Pro E Premium)
-      // O link na mensagem gera o preview nativo do WhatsApp automaticamente.
-      try {
-        console.log(`[WhatsApp] Enviando imagem (${sourceName}) com timeout de 25s para ${jid}...`);
-        await promiseWithTimeout(
-          session.socket.sendMessage(jid, { image: buffer, caption: message }),
-          25000,
-          `Timeout de 25s ao enviar imagem (${sourceName})`
-        );
-        console.log(`[WhatsApp] Mensagem com imagem enviada com sucesso para ${jid}`);
-        return;
-      } catch (err: any) {
-        console.error(`[WhatsApp] Erro ao enviar imagem, tentando texto como fallback:`, err.message || err);
+      const imageBuffer = await fetchImageBufferWithTimeout(imageUrl, 10000);
+      if (imageBuffer) {
+        try {
+          console.log(`[WhatsApp] Enviando imagem baixada com timeout de 20s para ${jid}...`);
+          await promiseWithTimeout(
+            session.socket.sendMessage(jid, { image: imageBuffer, caption: message }),
+            20000,
+            'Timeout de 20s ao enviar imagem baixada'
+          );
+          console.log(`[WhatsApp] Mensagem com imagem baixada enviada com sucesso para ${jid}`);
+          return;
+        } catch (err: any) {
+          console.error('[WhatsApp] Erro ao enviar imagem baixada, tentando texto como fallback:', err.message || err);
+        }
+      } else {
+        console.warn('[WhatsApp] Falha ao baixar imagem, enviando como texto apenas.');
       }
-    } else {
-      console.warn('[WhatsApp] Falha ao obter buffer da imagem, enviando como texto apenas.');
-    }
     }
   }
 
@@ -266,12 +265,12 @@ export const sendWhatsAppMessage = async (userId: string, targetId: string, mess
     console.log(`[WhatsApp] Mensagem de texto enviada com sucesso para ${jid}`);
   } catch (err: any) {
     console.error(`[WhatsApp] Erro ao enviar mensagem de texto para ${jid}:`, err.message || err);
-    throw err; // Repassa o erro para que o scheduler trate e não trave a esteira
+    throw err; // Repassa o erro para que o scheduler trate e n├úo trave a esteira
   } finally {
-    // Adiciona um delay aleatório entre 3s e 6s após QUALQUER tentativa de envio (com ou sem sucesso)
-    // para evitar que o WhatsApp/Baileys silenciosamente descarte mensagens enviadas muito rápido
+    // Adiciona um delay aleat├│rio entre 3s e 6s ap├│s QUALQUER tentativa de envio (com ou sem sucesso)
+    // para evitar que o WhatsApp/Baileys silenciosamente descarte mensagens enviadas muito r├ípido
     const delayMs = Math.floor(Math.random() * 3000) + 3000;
-    console.log(`[WhatsApp] Aguardando ${delayMs}ms antes do próximo envio...`);
+    console.log(`[WhatsApp] Aguardando ${delayMs}ms antes do pr├│ximo envio...`);
     await new Promise(r => setTimeout(r, delayMs));
   }
 };
@@ -294,15 +293,15 @@ export const getWhatsAppGroups = async (userId: string) => {
 };
 
 /**
- * Pré-carrega sessões WhatsApp de todos os usuários com credenciais salvas.
+ * Pr├®-carrega sess├Áes WhatsApp de todos os usu├írios com credenciais salvas.
  * Chamado ao iniciar o servidor para evitar cold-start no primeiro envio.
  */
 export const autoReconnectAllSessions = async (): Promise<void> => {
   try {
-    console.log('[WhatsApp] Verificando pastas locais para auto-reconexão...');
+    console.log('[WhatsApp] Verificando pastas locais para auto-reconex├úo...');
     const fs = require('fs');
     if (!fs.existsSync('./whatsapp_sessions')) {
-      console.log('[WhatsApp] Nenhuma sessão local encontrada (pasta whatsapp_sessions não existe).');
+      console.log('[WhatsApp] Nenhuma sess├úo local encontrada (pasta whatsapp_sessions n├úo existe).');
       return;
     }
     
@@ -310,12 +309,12 @@ export const autoReconnectAllSessions = async (): Promise<void> => {
     let count = 0;
     for (const userId of usersDirs) {
       if (fs.existsSync(`./whatsapp_sessions/${userId}/creds.json`)) {
-         console.log(`[WhatsApp] Auto-iniciando sessão para userId: ${userId}`);
-         startWhatsAppSession(userId).catch(e => console.error(`[WhatsApp] Falha ao auto-iniciar sessão para ${userId}:`, e));
+         console.log(`[WhatsApp] Auto-iniciando sess├úo para userId: ${userId}`);
+         startWhatsAppSession(userId).catch(e => console.error(`[WhatsApp] Falha ao auto-iniciar sess├úo para ${userId}:`, e));
          count++;
       }
     }
-    console.log(`[WhatsApp] Auto-reconexão iniciada para ${count} usuário(s).`);
+    console.log(`[WhatsApp] Auto-reconex├úo iniciada para ${count} usu├írio(s).`);
   } catch (e) {
     console.error('[WhatsApp] Erro no autoReconnectAllSessions:', e);
   }
