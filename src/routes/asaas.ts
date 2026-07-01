@@ -331,6 +331,15 @@ router.post('/upgrade/:userId', async (req: Request, res: Response) => {
 // Recebe TODOS os eventos do Asaas (endpoint PÚBLICO)
 // ════════════════════════════════════════════════════════════
 router.post('/webhook', async (req: Request, res: Response) => {
+  const webhookToken = process.env.ASAAS_WEBHOOK_TOKEN;
+  const providedToken = req.headers['asaas-access-token'];
+
+  // Validar token do webhook se configurado no .env
+  if (webhookToken && providedToken !== webhookToken) {
+    console.warn(`[Webhook] Token inválido recebido: ${providedToken}`);
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   const payload = req.body;
   const eventType: string = payload?.event || 'UNKNOWN';
   const eventId: string = payload?.payment?.id || payload?.subscription?.id
