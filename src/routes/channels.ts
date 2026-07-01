@@ -59,6 +59,10 @@ channelsRouter.post('/create', async (req, res) => {
       name,
       type,
       targetId,
+      status: 'active',
+      members: 0,
+      totalSent: 0,
+      lastSent: 'Nunca',
       createdAt: new Date().toISOString()
     });
 
