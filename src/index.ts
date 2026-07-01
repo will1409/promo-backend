@@ -40,6 +40,7 @@ import campaignsRouter from './routes/campaigns';
 import { startScheduler } from './services/scheduler';
 import { autoReconnectAllSessions } from './services/whatsapp';
 import adminRouter from './routes/admin';
+import asaasRouter from './routes/asaas';
 
 dotenv.config();
 
@@ -158,6 +159,7 @@ app.use('/api/channels', channelsRouter);
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/esteiras', campaignsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/asaas', asaasRouter);
 
 
 

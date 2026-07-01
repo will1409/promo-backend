@@ -142,4 +142,71 @@ router.get('/debug-channels/:userId', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/admin/revenue — Métricas financeiras (MRR, ARR, Churn, assinantes)
+router.get('/revenue', async (_req: Request, res: Response) => {
+  try {
+    const PLAN_VALUES: Record<string, number> = { lite: 14.90, pro: 39.90, premium: 69.90 };
+    const listUsersResult = await admin.auth().listUsers(1000);
+    const allUids = listUsersResult.users.map(u => u.uid);
+
+    const userDocs = await Promise.all(
+      allUids.map(uid => db.collection('users').doc(uid).get())
+    );
+
+    const usersData = userDocs
+      .filter(d => d.exists)
+      .map(d => ({ uid: d.id, ...d.data() as any }));
+
+    const active    = usersData.filter(u => u.subscriptionStatus === 'ACTIVE');
+    const overdue   = usersData.filter(u => u.subscriptionStatus === 'OVERDUE');
+    const canceled  = usersData.filter(u => u.subscriptionStatus === 'CANCELED');
+    const pending   = usersData.filter(u => u.subscriptionStatus === 'PENDING');
+    const noSub     = usersData.filter(u => !u.subscriptionStatus);
+
+    // MRR = soma dos planos ativos
+    const mrr = active.reduce((sum, u) => sum + (PLAN_VALUES[u.planId] || 0), 0);
+    const arr = mrr * 12;
+
+    // Assinantes por plano
+    const byPlan = {
+      lite:    active.filter(u => u.planId === 'lite').length,
+      pro:     active.filter(u => u.planId === 'pro').length,
+      premium: active.filter(u => u.planId === 'premium').length,
+    };
+
+    // Churn = cancelados do mês / total do mês passado (simplificado)
+    const totalSubscribers = active.length + overdue.length + canceled.length;
+    const churnRate = totalSubscribers > 0
+      ? ((canceled.length / totalSubscribers) * 100).toFixed(1)
+      : '0.0';
+
+    return res.json({
+      success: true,
+      summary: {
+        mrr: mrr.toFixed(2),
+        arr: arr.toFixed(2),
+        activeSubscribers: active.length,
+        overdueSubscribers: overdue.length,
+        canceledSubscribers: canceled.length,
+        pendingSubscribers: pending.length,
+        noSubscription: noSub.length,
+        totalUsers: usersData.length,
+        churnRate: `${churnRate}%`,
+        byPlan,
+      },
+      overdueUsers: overdue.map(u => ({
+        uid: u.uid,
+        email: listUsersResult.users.find(a => a.uid === u.uid)?.email || '—',
+        planId: u.planId,
+        nextDueDate: u.nextDueDate,
+        lastPaymentDate: u.lastPaymentDate,
+      })),
+    });
+  } catch (error: any) {
+    console.error('[/api/admin/revenue]', error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
+
