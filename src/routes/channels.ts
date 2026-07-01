@@ -46,12 +46,13 @@ channelsRouter.post('/create', async (req, res) => {
   try {
     const limits = await getUserLimits(userId);
     
-    // Contar canais atuais
-    const channelsSnap = await db.collection(`users/${userId}/channels`).get();
+    // Contar canais atuais do mesmo tipo
+    const channelsSnap = await db.collection(`users/${userId}/channels`).where('type', '==', type).get();
     const currentChannelsCount = channelsSnap.size;
 
     if (currentChannelsCount >= limits.channels) {
-      return res.status(403).json({ error: `Você atingiu o limite de ${limits.channels} canal(is) do seu plano. Faça upgrade para adicionar mais.` });
+      const typeName = type === 'whatsapp' ? 'WhatsApp' : 'Telegram';
+      return res.status(403).json({ error: `Você atingiu o limite de ${limits.channels} grupo(s) de ${typeName} do seu plano. Faça upgrade para adicionar mais.` });
     }
 
     const newDocRef = await db.collection(`users/${userId}/channels`).add({

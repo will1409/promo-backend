@@ -6,7 +6,8 @@ module.exports = {
       instances: 1, // Baileys (WhatsApp) prefere rodar em 1 instância apenas para evitar conflitos de sessão sqlite
       autorestart: true,
       watch: false,
-      max_memory_restart: "2G", // Se ultrapassar 2GB de RAM, restarta o processo para liberar memória (vazamentos do Playwright/Baileys)
+      node_args: "--max-old-space-size=14000",
+      max_memory_restart: "14G", // Se ultrapassar 14GB de RAM, restarta o processo para liberar memória (vazamentos do Playwright/Baileys)
       env: {
         NODE_ENV: "production",
       }
