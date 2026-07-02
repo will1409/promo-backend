@@ -40,6 +40,14 @@ export async function getUserPlan(userId: string): Promise<PlanType> {
       return 'blocked';
     }
 
+    // Se for TRIAL, verifica se expirou
+    if (subscriptionStatus === 'TRIAL') {
+      const trialEndsAt = data.trialEndsAt ? new Date(data.trialEndsAt) : null;
+      if (!trialEndsAt || trialEndsAt.getTime() < Date.now()) {
+        return 'blocked';
+      }
+    }
+
     if (data.plan && Object.keys(PLAN_LIMITS).includes(data.plan)) {
       return data.plan as PlanType;
     }
@@ -83,6 +91,17 @@ export function verifySubscription(req: Request, res: Response, next: NextFuncti
 
       // Admins têm acesso total
       if (ADMIN_EMAILS.includes(email)) return next();
+
+      if (status === 'TRIAL') {
+        const trialEndsAt = data.trialEndsAt ? new Date(data.trialEndsAt) : null;
+        if (!trialEndsAt || trialEndsAt.getTime() < Date.now()) {
+          return res.status(403).json({
+            error: 'Seu período de teste grátis expirou. Escolha um plano para continuar lucrando.',
+            code: 'TRIAL_EXPIRED',
+            status: 'EXPIRED'
+          });
+        }
+      }
 
       const allowedStatuses: SubscriptionStatusType[] = ['ACTIVE', 'TRIAL', 'LIFETIME'];
       if (!status || !allowedStatuses.includes(status)) {
