@@ -5,7 +5,7 @@ export type PlanType = 'blocked' | 'lite' | 'pro' | 'premium';
 
 export type SubscriptionStatusType =
   | 'TRIAL' | 'PENDING' | 'ACTIVE' | 'OVERDUE'
-  | 'EXPIRED' | 'CANCELED' | 'SUSPENDED' | 'BLOCKED';
+  | 'EXPIRED' | 'CANCELED' | 'SUSPENDED' | 'BLOCKED' | 'LIFETIME';
 
 export const PLAN_LIMITS = {
   blocked: { channels: 0, campaigns: 0, dailyOffers: 0 },
@@ -84,7 +84,7 @@ export function verifySubscription(req: Request, res: Response, next: NextFuncti
       // Admins têm acesso total
       if (ADMIN_EMAILS.includes(email)) return next();
 
-      const allowedStatuses: SubscriptionStatusType[] = ['ACTIVE', 'TRIAL'];
+      const allowedStatuses: SubscriptionStatusType[] = ['ACTIVE', 'TRIAL', 'LIFETIME'];
       if (!status || !allowedStatuses.includes(status)) {
         return res.status(403).json({
           error: 'Assinatura inativa ou vencida. Regularize seu pagamento.',
