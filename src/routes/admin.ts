@@ -50,6 +50,10 @@ router.get('/users', async (_req: Request, res: Response) => {
           .collection('users').doc(userId)
           .collection('channels').get();
 
+        // User Document
+        const userDoc = await db.collection('users').doc(userId).get();
+        const userData = userDoc.exists ? userDoc.data() : {};
+
         return {
           uid: userId,
           email: authUser.email || '—',
@@ -62,6 +66,8 @@ router.get('/users', async (_req: Request, res: Response) => {
           activeCampaigns: campaignsSnap.size,
           totalOffers: offersSnap.size,
           totalChannels: channelsSnap.size,
+          planId: userData?.planId || 'lite',
+          subscriptionStatus: userData?.subscriptionStatus || 'TRIAL',
         };
       } catch (e) {
         return {
@@ -76,6 +82,8 @@ router.get('/users', async (_req: Request, res: Response) => {
           activeCampaigns: 0,
           totalOffers: 0,
           totalChannels: 0,
+          planId: 'lite',
+          subscriptionStatus: 'TRIAL',
           error: 'Erro ao buscar dados do Firestore',
         };
       }
@@ -205,6 +213,34 @@ router.get('/revenue', async (_req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[/api/admin/revenue]', error.message);
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/admin/users/:userId/status — Atualiza o status da assinatura (ex: CANCELED para bloquear)
+router.post('/users/:userId/status', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { subscriptionStatus } = req.body;
+    if (!subscriptionStatus) return res.status(400).json({ error: 'Missing subscriptionStatus' });
+
+    await db.collection('users').doc(userId).update({ subscriptionStatus });
+    res.json({ success: true, message: `Status de ${userId} alterado para ${subscriptionStatus}` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/admin/users/:userId/plan — Altera o plano do usuário
+router.post('/users/:userId/plan', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { planId } = req.body;
+    if (!planId) return res.status(400).json({ error: 'Missing planId' });
+
+    await db.collection('users').doc(userId).update({ planId });
+    res.json({ success: true, message: `Plano de ${userId} alterado para ${planId}` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
