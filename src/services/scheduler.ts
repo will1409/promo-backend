@@ -252,9 +252,10 @@ export const startScheduler = () => {
               return;
             }
  
-          // Sanitiza o link: se vier com TAB ou espaço duplo (dois links colados), usa só o primeiro URL válido
-          const rawLink = links[currentIndex];
-          const linkUrl = (rawLink || '').split(/\t|\s{2,}/).map((s: string) => s.trim()).filter((s: string) => s.startsWith('http'))[0] || rawLink;
+          // Sanitiza o link: procura pela URL usando regex para ignorar numerações e textos extras (ex: "1. https...")
+          const rawLink = links[currentIndex] || '';
+          const matchUrl = rawLink.match(/https?:\/\/[^\s]+/);
+          const linkUrl = matchUrl ? matchUrl[0] : rawLink;
           console.log(`🚀 Processando link da campanha [${name}]: ${linkUrl}`);
 
           try {
