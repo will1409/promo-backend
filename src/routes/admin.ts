@@ -68,6 +68,7 @@ router.get('/users', async (_req: Request, res: Response) => {
           totalChannels: channelsSnap.size,
           planId: userData?.planId || 'lite',
           subscriptionStatus: userData?.subscriptionStatus || 'TRIAL',
+          disabled: authUser.disabled || false,
         };
       } catch (e) {
         return {
@@ -84,6 +85,7 @@ router.get('/users', async (_req: Request, res: Response) => {
           totalChannels: 0,
           planId: 'lite',
           subscriptionStatus: 'TRIAL',
+          disabled: authUser.disabled || false,
           error: 'Erro ao buscar dados do Firestore',
         };
       }
@@ -124,8 +126,8 @@ router.get('/wa-sessions', async (_req: Request, res: Response) => {
       })
     );
 
-    const connected = sessions.filter(s => s.waStatus === 'connected').length;
-    const connecting = sessions.filter(s => s.waStatus === 'connecting').length;
+    const connected    = sessions.filter(s => s.waStatus === 'connected').length;
+    const connecting   = sessions.filter(s => s.waStatus === 'connecting').length;
     const disconnected = sessions.filter(s => s.waStatus === 'disconnected').length;
 
     return res.json({
@@ -165,11 +167,11 @@ router.get('/revenue', async (_req: Request, res: Response) => {
       .filter(d => d.exists)
       .map(d => ({ uid: d.id, ...d.data() as any }));
 
-    const active    = usersData.filter(u => u.subscriptionStatus === 'ACTIVE');
-    const overdue   = usersData.filter(u => u.subscriptionStatus === 'OVERDUE');
-    const canceled  = usersData.filter(u => u.subscriptionStatus === 'CANCELED');
-    const pending   = usersData.filter(u => u.subscriptionStatus === 'PENDING');
-    const noSub     = usersData.filter(u => !u.subscriptionStatus);
+    const active   = usersData.filter(u => u.subscriptionStatus === 'ACTIVE');
+    const overdue  = usersData.filter(u => u.subscriptionStatus === 'OVERDUE');
+    const canceled = usersData.filter(u => u.subscriptionStatus === 'CANCELED');
+    const pending  = usersData.filter(u => u.subscriptionStatus === 'PENDING');
+    const noSub    = usersData.filter(u => !u.subscriptionStatus);
 
     // MRR = soma dos planos ativos
     const mrr = active.reduce((sum, u) => sum + (PLAN_VALUES[u.planId] || 0), 0);
@@ -216,7 +218,7 @@ router.get('/revenue', async (_req: Request, res: Response) => {
   }
 });
 
-// POST /api/admin/users/:userId/status — Atualiza o status da assinatura (ex: CANCELED para bloquear)
+// POST /api/admin/users/:userId/status — Atualiza o status da assinatura
 router.post('/users/:userId/status', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
@@ -252,7 +254,7 @@ router.post('/users/:userId/plan', async (req: Request, res: Response) => {
 router.post('/users/:userId/lifetime', async (req: Request, res: Response) => {
   try {
     const { userId } = req.params;
-    const { plan = 'pro' } = req.body; // plano padrão: pro
+    const { plan = 'pro' } = req.body;
 
     const validPlans = ['lite', 'pro', 'premium'];
     if (!validPlans.includes(plan)) {
@@ -260,12 +262,9 @@ router.post('/users/:userId/lifetime', async (req: Request, res: Response) => {
     }
 
     const now = new Date().toISOString();
-
-    // Busca dados atuais para auditoria
     const userDoc = await db.collection('users').doc(userId).get();
     const previousStatus = userDoc.data()?.subscriptionStatus || 'desconhecido';
 
-    // Aplica LIFETIME com todos os campos necessários
     await db.collection('users').doc(userId).update({
       subscriptionStatus: 'LIFETIME',
       plan,
@@ -273,14 +272,11 @@ router.post('/users/:userId/lifetime', async (req: Request, res: Response) => {
       isPremium: plan === 'premium',
       lifetimeGrantedAt: now,
       updatedAt: now,
-      // Remove subscriptionId — sem isso, o webhook do Asaas não encontra o usuário
-      // e não pode sobrescrever o status LIFETIME
       subscriptionId: admin.firestore.FieldValue.delete(),
       nextDueDate: admin.firestore.FieldValue.delete(),
       asaasCustomerId: admin.firestore.FieldValue.delete(),
     });
 
-    // Auditoria permanente
     await db.collection('auditLogs').add({
       userId,
       action: 'LIFETIME_GRANTED',
@@ -305,5 +301,129 @@ router.post('/users/:userId/lifetime', async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+// ═══════════════════════════════════════════════════════════
+// DELETE /api/admin/users/:userId/reset-data
+// Apaga TODOS os dados do usuário no Firestore, mas mantém
+// a conta no Firebase Auth intacta.
+// → O usuário pode se recadastrar como cliente novo (ganha novo trial).
+// ═══════════════════════════════════════════════════════════
+router.delete('/users/:userId/reset-data', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const now = new Date().toISOString();
 
+    // 1. Salva dados para auditoria antes de apagar
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.data() || {};
+
+    // 2. Apaga todas as subcoleções do usuário
+    const subcollections = ['payments', 'notifications', 'channels', 'whatsapp_auth'];
+    for (const sub of subcollections) {
+      const snap = await db.collection('users').doc(userId).collection(sub).get();
+      if (!snap.empty) {
+        const batch = db.batch();
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+
+    // 3. Apaga o documento principal do usuário
+    await db.collection('users').doc(userId).delete();
+
+    // 4. Apaga campanhas, agendamentos e ofertas do usuário
+    const collections = ['campaigns', 'scheduled_offers', 'offers'];
+    for (const col of collections) {
+      const snap = await db.collection(col).where('userId', '==', userId).get();
+      if (!snap.empty) {
+        const batch = db.batch();
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    }
+
+    // 5. Auditoria
+    await db.collection('auditLogs').add({
+      userId,
+      action: 'USER_DATA_RESET',
+      email: userData.email || '—',
+      resetAt: now,
+      createdAt: now,
+      note: 'Todos os dados apagados pelo Admin. Conta Auth mantida (pode recadastrar).',
+    });
+
+    console.log(`[Admin] 🗑️ Dados apagados → userId: ${userId}`);
+    res.json({
+      success: true,
+      message: `Todos os dados de ${userId} foram apagados. A conta pode ser usada para se cadastrar novamente.`,
+    });
+  } catch (error: any) {
+    console.error('[/api/admin/reset-data]', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// POST /api/admin/users/:userId/ban
+// Bane o usuário permanentemente:
+//  1. Desativa a conta no Firebase Auth (não consegue mais logar)
+//  2. Marca subscriptionStatus: BLOCKED no Firestore
+// → Não consegue usar o sistema com esse email/Google nunca mais.
+// ═══════════════════════════════════════════════════════════
+router.post('/users/:userId/ban', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { reason = 'Banido pelo Admin' } = req.body;
+    const now = new Date().toISOString();
+
+    // 1. Busca dados para auditoria
+    const userDoc = await db.collection('users').doc(userId).get();
+    const userData = userDoc.data() || {};
+
+    // 2. Desativa a conta no Firebase Auth — impede qualquer login
+    await admin.auth().updateUser(userId, { disabled: true });
+
+    // 3. Marca BLOCKED no Firestore
+    if (userDoc.exists) {
+      await db.collection('users').doc(userId).update({
+        subscriptionStatus: 'BLOCKED',
+        isPremium: false,
+        plan: 'blocked',
+        bannedAt: now,
+        banReason: reason,
+        updatedAt: now,
+      });
+    } else {
+      await db.collection('users').doc(userId).set({
+        subscriptionStatus: 'BLOCKED',
+        isPremium: false,
+        plan: 'blocked',
+        bannedAt: now,
+        banReason: reason,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // 4. Auditoria
+    await db.collection('auditLogs').add({
+      userId,
+      action: 'USER_BANNED',
+      email: userData.email || '—',
+      reason,
+      bannedAt: now,
+      createdAt: now,
+      note: 'Conta desativada no Firebase Auth + BLOCKED no Firestore.',
+    });
+
+    console.log(`[Admin] 🚫 Usuário banido → userId: ${userId} | motivo: ${reason}`);
+    res.json({
+      success: true,
+      message: `Usuário ${userId} foi banido. Conta desativada no Firebase Auth.`,
+    });
+  } catch (error: any) {
+    console.error('[/api/admin/ban]', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
