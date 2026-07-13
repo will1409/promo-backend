@@ -244,5 +244,66 @@ router.post('/users/:userId/plan', async (req: Request, res: Response) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// POST /api/admin/users/:userId/lifetime
+// Define um usuário como VITALÍCIO (LIFETIME) de forma permanente.
+// Apaga subscriptionId para que o webhook do Asaas nunca interfira.
+// ═══════════════════════════════════════════════════════════
+router.post('/users/:userId/lifetime', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { plan = 'pro' } = req.body; // plano padrão: pro
+
+    const validPlans = ['lite', 'pro', 'premium'];
+    if (!validPlans.includes(plan)) {
+      return res.status(400).json({ error: `Plano inválido: ${plan}. Use: lite, pro ou premium` });
+    }
+
+    const now = new Date().toISOString();
+
+    // Busca dados atuais para auditoria
+    const userDoc = await db.collection('users').doc(userId).get();
+    const previousStatus = userDoc.data()?.subscriptionStatus || 'desconhecido';
+
+    // Aplica LIFETIME com todos os campos necessários
+    await db.collection('users').doc(userId).update({
+      subscriptionStatus: 'LIFETIME',
+      plan,
+      planId: plan,
+      isPremium: plan === 'premium',
+      lifetimeGrantedAt: now,
+      updatedAt: now,
+      // Remove subscriptionId — sem isso, o webhook do Asaas não encontra o usuário
+      // e não pode sobrescrever o status LIFETIME
+      subscriptionId: admin.firestore.FieldValue.delete(),
+      nextDueDate: admin.firestore.FieldValue.delete(),
+      asaasCustomerId: admin.firestore.FieldValue.delete(),
+    });
+
+    // Auditoria permanente
+    await db.collection('auditLogs').add({
+      userId,
+      action: 'LIFETIME_GRANTED',
+      plan,
+      previousStatus,
+      grantedAt: now,
+      createdAt: now,
+      note: 'Concedido pelo Admin via painel',
+    });
+
+    console.log(`[Admin] ⭐ LIFETIME concedido → userId: ${userId} | plano: ${plan}`);
+    res.json({
+      success: true,
+      message: `Usuário ${userId} agora é LIFETIME com plano ${plan}`,
+      previousStatus,
+      newStatus: 'LIFETIME',
+      plan,
+    });
+  } catch (error: any) {
+    console.error('[/api/admin/lifetime]', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
 

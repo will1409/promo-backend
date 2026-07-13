@@ -435,6 +435,20 @@ async function resolveUserId(payment?: any, subscription?: any): Promise<string 
   return null;
 }
 
+/**
+ * ⭐ PROTEÇÃO VITALÍCIO — verifica se o usuário tem acesso LIFETIME.
+ * Se sim, NENHUM evento do Asaas deve sobrescrever seu status.
+ */
+async function isLifetimeUser(userId: string): Promise<boolean> {
+  try {
+    const snap = await db.collection('users').doc(userId).get();
+    return snap.exists && snap.data()?.subscriptionStatus === 'LIFETIME';
+  } catch (e) {
+    console.warn(`[Webhook] Falha ao verificar LIFETIME para userId ${userId}:`, e);
+    return false; // em caso de erro, deixa prosseguir (não bloqueia)
+  }
+}
+
 async function savePaymentToFirestore(payment: any, userId: string, subscriptionId: string) {
   const paymentData = {
     paymentId: payment.id,
@@ -481,6 +495,22 @@ async function processWebhookEvent(eventType: string, payload: any): Promise<voi
         return;
       }
 
+      // ⭐ PROTEÇÃO VITALÍCIO — nunca sobrescreve status LIFETIME
+      if (await isLifetimeUser(userId)) {
+        console.log(`[Webhook] ⭐ Usuário LIFETIME protegido (PAYMENT_CONFIRMED ignorado): ${userId}`);
+        // Ainda salva o pagamento no histórico para auditoria, mas não altera o status
+        if (payment?.id) {
+          const userDoc = await db.collection('users').doc(userId).get();
+          const userData = userDoc.data() || {};
+          await savePaymentToFirestore(
+            { ...payment, paymentDate: payment.paymentDate || now },
+            userId,
+            payment.subscription || userData.subscriptionId || ''
+          );
+        }
+        break;
+      }
+
       const userDoc = await db.collection('users').doc(userId).get();
       const userData = userDoc.data() || {};
       const planId = userData.planId || payment?.externalReference || 'lite';
@@ -524,6 +554,12 @@ async function processWebhookEvent(eventType: string, payload: any): Promise<voi
     case 'PAYMENT_OVERDUE': {
       const userId = await resolveUserId(payment, subscription);
       if (!userId) return;
+
+      // ⭐ PROTEÇÃO VITALÍCIO — nunca marca LIFETIME como OVERDUE
+      if (await isLifetimeUser(userId)) {
+        console.log(`[Webhook] ⭐ Usuário LIFETIME protegido (PAYMENT_OVERDUE ignorado): ${userId}`);
+        break;
+      }
 
       await db.collection('users').doc(userId).update({
         subscriptionStatus: 'OVERDUE',
@@ -585,6 +621,12 @@ async function processWebhookEvent(eventType: string, payload: any): Promise<voi
       const userId = await findUserByCustomerId(customerId);
       if (!userId) return;
 
+      // ⭐ PROTEÇÃO VITALÍCIO — não sobrescreve LIFETIME com PENDING
+      if (await isLifetimeUser(userId)) {
+        console.log(`[Webhook] ⭐ Usuário LIFETIME protegido (SUBSCRIPTION_CREATED ignorado): ${userId}`);
+        break;
+      }
+
       await db.collection('users').doc(userId).update({
         subscriptionStatus: 'PENDING',
         subscriptionUpdatedAt: now,
@@ -610,6 +652,12 @@ async function processWebhookEvent(eventType: string, payload: any): Promise<voi
     case 'SUBSCRIPTION_DELETED': {
       const userId = await resolveUserId(undefined, subscription);
       if (!userId) return;
+
+      // ⭐ PROTEÇÃO VITALÍCIO — nunca cancela/bloqueia usuário LIFETIME
+      if (await isLifetimeUser(userId)) {
+        console.log(`[Webhook] ⭐ Usuário LIFETIME protegido (SUBSCRIPTION_DELETED ignorado): ${userId}`);
+        break;
+      }
 
       // 🔒 BLOQUEIA ACESSO IMEDIATAMENTE
       await db.collection('users').doc(userId).update({
