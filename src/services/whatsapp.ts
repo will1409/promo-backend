@@ -16,6 +16,10 @@ const sessions: { [userId: string]: WhatsAppSession } = {};
 const logger = pino({ level: 'silent' });
 export const connectionLogs: string[] = [];
 
+// Contador de falhas consecutivas por usuário para evitar loop infinito
+const failureCounts: { [userId: string]: number } = {};
+const MAX_FAILURES = 5;
+
 export const startWhatsAppSession = async (userId: string) => {
   if (sessions[userId] && sessions[userId].status === 'connected') {
     return sessions[userId];
@@ -63,32 +67,70 @@ export const startWhatsAppSession = async (userId: string) => {
 
     if (connection === 'close') {
       // IMPORTANTE: ignora eventos de sockets antigos para evitar race condition.
-      // Ex: ao fazer logout + reconectar em sequência, o evento close do socket antigo
-      // não deve destruir a nova sessão já criada.
       if (sessions[userId]?.socket !== socket) {
         console.log(`[WhatsApp] Ignorando evento 'close' de socket obsoleto para ${userId}`);
         return;
       }
 
-      const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+      const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+      const isConnectionFailure = statusCode === undefined || statusCode === 503 || statusCode === 408;
+
       sessions[userId].status = 'disconnected';
       sessions[userId].qr = null;
-      
-      console.log(`Connection closed for user ${userId}. Reconnect: ${shouldReconnect}`);
-      
-      if (shouldReconnect) {
-        setTimeout(() => startWhatsAppSession(userId), 5000);
-      } else {
+
+      console.log(`Connection closed for user ${userId}. StatusCode: ${statusCode}, LoggedOut: ${isLoggedOut}`);
+
+      if (isLoggedOut) {
+        // Sessão inválida — limpa e para
         delete sessions[userId];
+        failureCounts[userId] = 0;
         try {
           const fs = require('fs');
           const dir = `./whatsapp_sessions/${userId}`;
           if (fs.existsSync(dir)) {
             fs.rmSync(dir, { recursive: true, force: true });
-            console.log(`[WhatsApp] Invalidated session folder deleted for ${userId}`);
+            console.log(`[WhatsApp] Sessão inválida deletada para ${userId}`);
           }
         } catch(e) {
-          console.error('[WhatsApp] Error deleting invalid session directory:', e);
+          console.error('[WhatsApp] Erro ao deletar pasta de sessão:', e);
+        }
+      } else if (isConnectionFailure) {
+        // Falha de rede — conta falhas consecutivas
+        failureCounts[userId] = (failureCounts[userId] || 0) + 1;
+        const count = failureCounts[userId];
+        console.log(`[WhatsApp] Falha de conexão #${count} para ${userId}`);
+
+        if (count >= MAX_FAILURES) {
+          // Muitas falhas — limpa sessão e para de tentar para não spammar o WhatsApp
+          console.log(`[WhatsApp] Máximo de ${MAX_FAILURES} falhas atingido para ${userId}. Parando reconexão automática.`);
+          delete sessions[userId];
+          failureCounts[userId] = 0;
+          try {
+            const fs = require('fs');
+            const dir = `./whatsapp_sessions/${userId}`;
+            if (fs.existsSync(dir)) {
+              fs.rmSync(dir, { recursive: true, force: true });
+              console.log(`[WhatsApp] Pasta de sessão removida após ${MAX_FAILURES} falhas para ${userId}`);
+            }
+          } catch(e) {
+            console.error('[WhatsApp] Erro ao deletar pasta de sessão:', e);
+          }
+        } else {
+          // Backoff exponencial: 5s, 10s, 20s, 40s
+          const delay = Math.min(5000 * Math.pow(2, count - 1), 60000);
+          console.log(`[WhatsApp] Tentando reconectar ${userId} em ${delay}ms...`);
+          setTimeout(() => startWhatsAppSession(userId), delay);
+        }
+      } else {
+        // Outro erro — tenta reconectar após 5s
+        failureCounts[userId] = (failureCounts[userId] || 0) + 1;
+        if (failureCounts[userId] < MAX_FAILURES) {
+          setTimeout(() => startWhatsAppSession(userId), 5000);
+        } else {
+          console.log(`[WhatsApp] Parando reconexão para ${userId} após muitas falhas.`);
+          delete sessions[userId];
+          failureCounts[userId] = 0;
         }
       }
     } else if (connection === 'open') {
@@ -96,6 +138,7 @@ export const startWhatsAppSession = async (userId: string) => {
       console.log(`WhatsApp connected for user ${userId}`);
       sessions[userId].status = 'connected';
       sessions[userId].qr = null;
+      failureCounts[userId] = 0; // reset contador de falhas ao conectar com sucesso
     }
   });
 
