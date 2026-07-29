@@ -1,4 +1,4 @@
-﻿import makeWASocket, { DisconnectReason, useMultiFileAuthState, Browsers, isJidGroup } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, Browsers, isJidGroup } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import http from 'http';
 import https from 'https';
@@ -70,6 +70,16 @@ export const startWhatsAppSession = async (userId: string) => {
         setTimeout(() => startWhatsAppSession(userId), 5000);
       } else {
         delete sessions[userId];
+        try {
+          const fs = require('fs');
+          const dir = `./whatsapp_sessions/${userId}`;
+          if (fs.existsSync(dir)) {
+            fs.rmSync(dir, { recursive: true, force: true });
+            console.log(`[WhatsApp] Invalidated session folder deleted for ${userId}`);
+          }
+        } catch(e) {
+          console.error('[WhatsApp] Error deleting invalid session directory:', e);
+        }
       }
     } else if (connection === 'open') {
       console.log(`WhatsApp connected for user ${userId}`);
