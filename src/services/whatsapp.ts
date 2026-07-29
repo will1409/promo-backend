@@ -109,16 +109,6 @@ import { db } from '../config/firebase';
 export const getWhatsAppStatus = async (userId: string) => {
   const session = sessions[userId];
   if (!session) {
-    try {
-      const fs = require('fs');
-      if (fs.existsSync(`./whatsapp_sessions/${userId}/creds.json`)) {
-        // Start session in background
-        startWhatsAppSession(userId).catch(e => console.error('Failed to auto-start WA session', e));
-        return { status: 'connecting', qr: null };
-      }
-    } catch (e) {
-      console.error('Error checking WA creds', e);
-    }
     return { status: 'disconnected', qr: null };
   }
   return { status: session.status, qr: session.qr };
