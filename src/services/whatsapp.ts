@@ -50,6 +50,8 @@ export const startWhatsAppSession = async (userId: string) => {
     if (connectionLogs.length > 50) connectionLogs.shift();
 
     if (qr) {
+      // Garante que este socket ainda é o ativo antes de atualizar o QR
+      if (sessions[userId]?.socket !== socket) return;
       try {
         const qrBase64 = await QRCode.toDataURL(qr);
         sessions[userId].qr = qrBase64;
@@ -60,6 +62,14 @@ export const startWhatsAppSession = async (userId: string) => {
     }
 
     if (connection === 'close') {
+      // IMPORTANTE: ignora eventos de sockets antigos para evitar race condition.
+      // Ex: ao fazer logout + reconectar em sequência, o evento close do socket antigo
+      // não deve destruir a nova sessão já criada.
+      if (sessions[userId]?.socket !== socket) {
+        console.log(`[WhatsApp] Ignorando evento 'close' de socket obsoleto para ${userId}`);
+        return;
+      }
+
       const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
       sessions[userId].status = 'disconnected';
       sessions[userId].qr = null;
@@ -82,6 +92,7 @@ export const startWhatsAppSession = async (userId: string) => {
         }
       }
     } else if (connection === 'open') {
+      if (sessions[userId]?.socket !== socket) return;
       console.log(`WhatsApp connected for user ${userId}`);
       sessions[userId].status = 'connected';
       sessions[userId].qr = null;
