@@ -116,13 +116,21 @@ export const getWhatsAppStatus = async (userId: string) => {
 export const logoutWhatsApp = async (userId: string) => {
   const session = sessions[userId];
   if (session) {
-    await session.socket.logout();
+    try {
+      await session.socket.logout();
+    } catch (e) {
+      console.log(`[WhatsApp] Ignorando erro de logout no socket para ${userId}`);
+    }
     delete sessions[userId];
   }
   const fs = require('fs');
   const dir = `./whatsapp_sessions/${userId}`;
   if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch (e) {
+      console.error(`[WhatsApp] Erro ao deletar pasta para ${userId}:`, e);
+    }
   }
 };
 
