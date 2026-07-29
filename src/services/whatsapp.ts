@@ -78,7 +78,9 @@ export const startWhatsAppSession = async (userId: string) => {
       const isLoggedOut = statusCode === DisconnectReason.loggedOut;
       const isConnectionFailure = statusCode === undefined || statusCode === 503 || statusCode === 408;
 
-      sessions[userId].status = 'disconnected';
+      // Se não for um logout definitivo, vamos tentar reconectar.
+      // Mantemos o status como 'connecting' para o frontend continuar fazendo polling.
+      sessions[userId].status = isLoggedOut ? 'disconnected' : 'connecting';
       sessions[userId].qr = null;
 
       console.log(`Connection closed for user ${userId}. StatusCode: ${statusCode}, LoggedOut: ${isLoggedOut}`);
@@ -106,6 +108,7 @@ export const startWhatsAppSession = async (userId: string) => {
         if (count >= MAX_FAILURES) {
           // Muitas falhas — limpa sessão e para de tentar para não spammar o WhatsApp
           console.log(`[WhatsApp] Máximo de ${MAX_FAILURES} falhas atingido para ${userId}. Parando reconexão automática.`);
+          if (sessions[userId]) sessions[userId].status = 'disconnected';
           delete sessions[userId];
           failureCounts[userId] = 0;
           try {
@@ -131,6 +134,7 @@ export const startWhatsAppSession = async (userId: string) => {
           setTimeout(() => startWhatsAppSession(userId), 5000);
         } else {
           console.log(`[WhatsApp] Parando reconexão para ${userId} após muitas falhas.`);
+          if (sessions[userId]) sessions[userId].status = 'disconnected';
           delete sessions[userId];
           failureCounts[userId] = 0;
         }
