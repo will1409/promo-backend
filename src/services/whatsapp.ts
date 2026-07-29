@@ -158,6 +158,12 @@ import { db } from '../config/firebase';
 export const getWhatsAppStatus = async (userId: string) => {
   const session = sessions[userId];
   if (!session) {
+    const fs = require('fs');
+    // Se existe credencial salva mas a sessão não está em memória (ex: acabou de reiniciar o servidor)
+    if (fs.existsSync(`./whatsapp_sessions/${userId}/creds.json`)) {
+      // Retorna 'connecting' para que o frontend não mostre 'Inativo' e continue fazendo o polling
+      return { status: 'connecting', qr: null };
+    }
     return { status: 'disconnected', qr: null };
   }
   return { status: session.status, qr: session.qr };
