@@ -1,4 +1,4 @@
-import makeWASocket, { DisconnectReason, useMultiFileAuthState, Browsers, isJidGroup } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, Browsers, fetchLatestBaileysVersion, isJidGroup } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import http from 'http';
 import https from 'https';
@@ -29,12 +29,14 @@ export const startWhatsAppSession = async (userId: string) => {
   
   const authDir = `./whatsapp_sessions/${userId}`;
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
+  const { version } = await fetchLatestBaileysVersion();
 
   const socket = makeWASocket({
+    version,
     auth: state,
     logger,
     printQRInTerminal: false,
-    browser: Browsers.macOS('Desktop'),
+    browser: Browsers.ubuntu('Chrome'),
     syncFullHistory: false,
     generateHighQualityLinkPreview: true,
   });
