@@ -86,7 +86,7 @@ export const PLAN_NAMES: Record<string, string> = {
 };
 
 /** Dias de trial gratuito antes da primeira cobrança */
-export const PLAN_TRIAL_DAYS = 3;
+export const PLAN_TRIAL_DAYS = 7;
 
 // ─── Interfaces ────────────────────────────────────────────
 export interface AsaasCustomer {

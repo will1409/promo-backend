@@ -59,7 +59,7 @@ const getNotificationContent = (
     case 'SUBSCRIPTION_CREATED':
       return {
         title: '🎉 Assinatura Criada!',
-        message: `Bem-vindo ao plano ${payload?.plan || ''}! Você tem ${payload?.trialDays || 3} dias grátis. Aproveite!`,
+        message: `Bem-vindo ao plano ${payload?.plan || ''}! Você tem ${payload?.trialDays || 7} dias grátis. Aproveite!`,
         icon: 'celebration',
       };
     case 'SUBSCRIPTION_CANCELED':
