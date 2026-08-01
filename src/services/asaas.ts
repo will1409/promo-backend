@@ -179,7 +179,7 @@ export async function createOrGetCustomer(
 // ─── 2. Assinatura ────────────────────────────────────────
 /**
  * Cria assinatura recorrente no Asaas.
- * Inclui 3 dias de trial — a primeira cobrança ocorre em PLAN_TRIAL_DAYS dias.
+ * Inclui 7 dias de trial — a primeira cobrança ocorre em PLAN_TRIAL_DAYS dias.
  */
 export async function createSubscription(params: {
   customerId: string;

@@ -15,7 +15,7 @@ export const PLAN_LIMITS = {
 };
 
 /** E-mails com acesso admin (nunca bloqueados) */
-const ADMIN_EMAILS = ['novoendwill@gmail.com'];
+const ADMIN_EMAILS = ['linkouiasuporte@gmail.com'];
 
 /**
  * Retorna o plano efetivo do usuário.
